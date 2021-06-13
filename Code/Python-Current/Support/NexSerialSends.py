@@ -77,6 +77,7 @@ def send(cmd):
 
 def ResetNextion():
     printDebug("[From nextion.py] Restarting Nextion!!!!")
+    command = 'rest'
     send(command)
 
 def SendRef(type, id):

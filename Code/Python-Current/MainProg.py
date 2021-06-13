@@ -1,7 +1,7 @@
 import serial, time, platform, threading
 import pyfirmata
 from datetime import datetime
-from Support.NexSerialSends import ResetNextion, SendPage, SendVal, SendVis, SendBright, SendPic, SendRef, SetVis
+from Support.NexSerialSends import ResetNextion, SendPage, SendVal, SendVis, SendBright, SendPic, SendRef
 #from Support.NexSerialSends import PoPoShow
 from Support.SupportUtils import printDebug
 import multitimer
@@ -678,18 +678,18 @@ def RCTAShow(mode):
         #Get the correct frame to display
         if (anicount % 2) == 0: #Even Frame
             frameEvenOdd = "E" 
-            if(mode == 1):
+            if(mode == "L"):
                 SendPic(NPicBSDRCTAL, AssetRCTAL)
                 SendVis(NP, NPicBSDRCTAL, 1)
-            elif(mode == 2):
+            elif(mode == "R"):
                 SendPic(NPicBSDRCTAR, AssetRCTAR)
                 SendVis(NP, NPicBSDRCTAR, 1)
         else:                   #Odd Frame 
             frameEvenOdd =  "O"  
-            if(mode == 1):
+            if(mode == "L"):
                 SendRef(NP, NPicCenterPannel)
                 SendRef(NP, NPicBrakePOPORCTA)
-            elif(mode == 2):
+            elif(mode == "R"):
                 SendRef(NP, NPicCenterPannel)
                 SendRef(NP, NPicBrakePOPORCTA)
 
@@ -698,6 +698,8 @@ def RCTAShow(mode):
         time.sleep(0.22)
         printDebug("FROM RCTA ANIMATION {}: {} -Count {}/{}".format(mode, frameEvenOdd, anicount, anishows+2))
         anicount = anicount +1
+    SendVis(NP, NPicBSDRCTAL, 0)
+    SendVis(NP, NPicBSDRCTAR, 0)
     time.sleep(1)
     SendPic(NPicCenterPannel, AssetRCTA1)
     SendRef(NP, NPicBrakePOPORCTA)
@@ -1424,53 +1426,104 @@ def DemoLoop():
     whatDemo = "B"
     printDebug("RUNNING DEMO PROGRAM!!!!!")
     GetSavedValues()
-    if whatDemo == "B":
-        SendBright(100)
-        SendPage(pageBoot)
-        SetTrip(TripVal)
-        SetODO()
-        TimeThread(1)
-        time.sleep(15)
-        whatDemo = "P"
-    if whatDemo == "P":
-        SendPage(pagePark)
-        time.sleep(3.5)
-        TimeThread(1)
-        TempThread(1)
-        SetHella(1)
-        SetMPG()
-        SetTrip(TripVal)
-        SetFuel(FuelVal)
-        SetODO()
-        SetBLAlerts(1, BSDOff, SRFOff, IceWarning)
-        SetBRAlerts(1, sysAlert, parkBrake)
-        time.sleep(15)
-        whatDemo = "D"
-    if whatDemo == "D":
-        SendPage(pageDrive)
-        time.sleep(1)
-        VarHeadlight = 1
-        VarFollowing = 1 
-        LDWShow(1)
-        time.sleep(1)
-        VarHeadlight = 1
-        VarFollowing = 0 
-        LDWShow(2)
-        time.sleep(1)
-        VarHeadlight = 0
-        VarFollowing = 0
-        LDWShow(3)
-        time.sleep(1)
-        AEBShow()
-        time.sleep(1)
-        PoPoShow()
-        time.sleep(1)
-        EyeSightShow(1)
-        time.sleep(3)
-        EyeSightShow(2)
-        time.sleep(3)
-        EyeSightShow(0)
-        time.sleep(3)
+    
+   #Boot Sequence
+    SendBright(100)
+    SendPage(pageBoot)
+    SetTrip(TripVal)
+    SetODO()
+    TimeThread(1)
+    time.sleep(5)
+    
+   #Park Sequence
+    SendPage(pagePark)
+    time.sleep(3.5)
+    TimeThread(1)
+    TempThread(1)
+    SetHella(1)
+    SetPoPo(1)
+    SetMPG()
+    SetTrip(TripVal)
+    SetFuel(FuelVal)
+    SetODO()
+    SetBLAlerts(1, 1, 1, 1)
+    SetBRAlerts(1, 1, 1)
+    time.sleep(5)
+    
+   #Drive Setup
+    SendPage(pageDrive)
+    TimeThread(1)
+    TempThread(1)
+    SetHella(1)
+    SetGear("D")
+    SetMPG()
+    SetTrip(TripVal)
+    SetFuel(FuelVal)
+    SetODO()
+    time.sleep(3)
+
+   #Reverse
+    SetGear("R")
+    SendPic(NPicCenterPannel, AssetRCTA1)
+    SendVis(NP, NPicCenterPannel, 1)
+    SendVis(NP, NPicLeftLane, 0)
+    SendVis(NP, NPicRightLane, 0)
+    SendVis(NN, NNumCe, 0)
+    SendVis(NP, NPicHella, 0)
+    SendPic(NPicUpperPannel, AssetPageUltra)
+    SendVal(NN, NNumLe, 12)
+    SendVal(NN, NNumRi, 0)
+    SendVis(NN, NNumLe, 1)
+    SendVis(NN, NNumRi, 1)
+    TimeThread(1)
+    TempThread(1)
+    time.sleep(5)
+    RCTAShow("L")
+    time.sleep(2)
+    RCTAShow("R")
+    time.sleep(2)
+    #ADD ULTRASONIC DIST
+    #time.sleep(2)
+    SendPic(NPicUpperPannel, AssetPageMPH)
+    SendRef(NP, NPicUpperPannel)
+    SendVis(NN, NNumLe, 0)
+    SendVis(NN, NNumCe, 1)
+    SendVis(NN, NNumRi, 0)
+    SendVis(NP, NPicHella, 1)
+    SendPic(NPicLeftLane, AssetLeftLaneWhite)
+    SendPic(NPicRightLane, AssetRightLaneWhite)
+    #SendVis(NP, NPicCenterPannel, 0)
+    SetGear("D")
+    time.sleep(2)
+    
+   #Drive
+    
+
+   #Alerts Demo
+    SendPage(pageDrive)
+    time.sleep(1)
+    VarHeadlight = 1
+    VarFollowing = 1 
+    LDWShow(1)
+    time.sleep(1)
+    VarHeadlight = 1
+    VarFollowing = 0 
+    LDWShow(2)
+    time.sleep(1)
+    VarHeadlight = 0
+    VarFollowing = 0
+    LDWShow(3)
+    time.sleep(1)
+    AEBShow()
+    time.sleep(1)
+    PoPoShow()
+    time.sleep(1)
+    EyeSightShow(1)
+    time.sleep(3)
+    EyeSightShow(2)
+    time.sleep(3)
+    EyeSightShow(0)
+    time.sleep(3)
 
 def WaitForStrt():   #TODO add arduino sinngling
     power = 0
@@ -1495,13 +1548,13 @@ def Startup():  #TODO Remote start magic
             #Do Door Checks for driver open then close
             time.sleep(3)
             rsHold = False
-        SetPic(NexUpperPic, AssetUpperRS)
-        SetVis(NP, NexUpperPic, 1)
+        SendPic(NPicUpperPannel, AssetUpperRS)
+        SendVis(NP, NPicUpperPannel, 1)
         #Wait for brake press
         printDebug("Waiting for brake takeover...")
         time.sleep(3)
         printDebug("Takeover Complete!")
-        SetVis(NP, NexUpperPic, 0)
+        SendVis(NP, NPicUpperPannel, 0)
     time.sleep(3)
 
 def MainLoop():
@@ -1595,6 +1648,7 @@ def MainLoop():
                     elif(VarGear == "N" or "D" or VarGear.isdigit() == True):
                         inDriveLoop = 1
                     SendVis(NP, NPicCenterPannel, 0)
+                    SendVis(NP, NPicCenterPannel, 0)
                     SendVis(NP, NPicLeftLane, 1)
                     SendVis(NP, NPicRightLane, 1)
                     SetGear(VarGear)
@@ -1655,24 +1709,24 @@ def Reverse():
     pass
 
 #def Drive():
-#    SendPage(pageDrive)
-#    SendVal(NT, NTextGear, "D")
-#    Update("D")
+ #   SendPage(pageDrive)
+ #   SendVal(NT, NTextGear, "D")
+ #   Update("D")
 
-def ComTest2():
+def ComTest2(): #TODO
     #ardMega = pyfirmata.Arduino('COM8')
 
-    it = pyfirmata.util.Iterator(ardMega)
-    it.start()
+    #it = pyfirmata.util.Iterator(ardMega)
+    #it.start()
 
-    ardMega.digital[10].mode = pyfirmata.INPUT
+    #ardMega.digital[10].mode = pyfirmata.INPUT
 
     while True:
-        ardMega.digital[13].write(1)
-        sw = ardMega.digital[10].read()
-        print(sw)
+        #ardMega.digital[13].write(1)
+        #sw = ardMega.digital[10].read()
+        #print(sw)
         time.sleep(1)
-        ardMega.digital[13].write(0)
+        #ardMega.digital[13].write(0)
         time.sleep(1)
 
 #########################################################################################################################
@@ -1686,8 +1740,9 @@ tCruise = multitimer.MultiTimer(interval=1, function=CruiseThread, runonstart=Fa
 tLight = multitimer.MultiTimer(interval=0.25, function=LightThread, runonstart=False)
 #tAlert = multitimer.MultiTimer(interval=5, function=AlertThread, runonstart=False)
 
-#while True:
-#   DemoLoop()
+while True:
+   DemoLoop()
+   exit()
 
 GetSavedValues()
 WaitForStrt()
