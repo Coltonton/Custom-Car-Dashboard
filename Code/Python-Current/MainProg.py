@@ -1,7 +1,7 @@
 import serial, time, platform, threading
 import pyfirmata
 from datetime import datetime
-from Support.NexSerialSends import ResetNextion, SendPage, SendVal, SendVis, SendBright, SendPic, SendRef
+from Support.NexSerialSends import ResetNextion, SendPage, SendVal, SendVis, SendBright, SendPic, SendRef, SetVis
 #from Support.NexSerialSends import PoPoShow
 from Support.SupportUtils import printDebug
 import multitimer
@@ -76,6 +76,7 @@ VarTopPage         = 1
 pageOveride        = 0
 HideHella          = 0
 HidePoPo           = 0
+VarFollowing       = 0
 
 VarBSD             = ""
 VarRCTA            = 0
@@ -888,24 +889,24 @@ def SetHeadlight(side, color="white"): #TODO
             SendPic(NPicHeadlightLeft , AssetHLLeftBlueRain)
             SendPic(NPicHeadlightRight, AssetHLRightBlueRain)
     elif(side == "L"): #Left Line
-        if(color == "green" and rainbow == 0):
+        if(color == "green" and VarIsRainbow == 0):
             pass
-        elif(color == "green" and rainbow == 1):
+        elif(color == "green" and VarIsRainbow == 1):
             pass
-        elif(color == "yellow" and rainbow == 0):
+        elif(color == "yellow" and VarIsRainbow == 0):
             pass
-        elif(color == "yellow" and rainbow == 1):
+        elif(color == "yellow" and VarIsRainbow == 1):
             pass
         elif(color == "red"):
             pass
     elif(side == "R"): #Right Line
-        if(color == "green" and rainbow == 0):
+        if(color == "green" and VarIsRainbow == 0):
             pass
-        elif(color == "green" and rainbow == 1):
+        elif(color == "green" and VarIsRainbow == 1):
             pass
-        elif(color == "yellow" and rainbow == 0):
+        elif(color == "yellow" and VarIsRainbow == 0):
             pass
-        elif(color == "yellow" and rainbow == 1):
+        elif(color == "yellow" and VarIsRainbow == 1):
             pass
         elif(color == "red"):
             pass
