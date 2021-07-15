@@ -48,8 +48,8 @@ HeadlightVal = 0
 #---Vars---------
 sysStartup         = 1
 isRemoteStarted    = 0
-VarCurrentGear     = "P"
-VarGear            = "P" 
+#VarCurrentGear     = "P"
+VarCurrentGear            = "P" 
 shownBLAlerts      = 0
 BSDOff             = 0
 SRFOff             = 0
@@ -69,9 +69,12 @@ VarCruiseSetSpeed  = "--"
 VarIsRainbow       = 0
 VarLaneColor       = "white"
 VarBrake           = 0
-VarFrontUS         = 0
-VarRearUS          = 0
 VarSpeed           = 0
+VarRPM             = 0
+VarGyroRoll        = 0
+VarGyroPitch       = 0
+VarUltraFro        = 0
+VarUltraRea        = 0
 VarTopPage         = 1
 pageOveride        = 0
 HideHella          = 0
@@ -81,15 +84,18 @@ VarFollowing       = 0
 VarBSD             = ""
 VarRCTA            = 0
 
-VarBSDOff          = 1
-VarSRFOff          = 1
-VarIceWarning      = 1
-VarSysAlert        = 1
-VarParkBrake       = 1
+VarBSDOff          = 0
+VarSRFOff          = 0
+VarIceWarning      = 0
+VarSysAlert        = 0
+VarParkBrake       = 0
 
 driveGearsList = ["N", "D", "1", "2", "3", "4", "5", "6"]
 
 temp = 0
+
+updateHella   = 1
+updatePoPo    = 1 
 
 #---Timer Threads---
 tTime  = None
@@ -405,7 +411,7 @@ def RefCenter():
     SendRef(NP, NPicCruise4)
     SendRef(NP, NPicBrakeMainAEB)
 
-def SetHella(value=0):          #Hella Set Function  0-Off 1-Auto 2-On
+def SetHella(value=0, overide=0):          #Hella Set Function  0-Off 1-Auto 2-On
     global VarHella
     if value == 0:   # If Set to Off
         SendVis(NP, NPicHella, 0)
@@ -417,13 +423,21 @@ def SetHella(value=0):          #Hella Set Function  0-Off 1-Auto 2-On
         SendPic(NPicHella, AssetHellaOn)
     
     VarHella = value
-    printDebug("Updated Hella to state {}".format(value))
+    if overide == 0:
+        printDebug("Updated Hella to state {}".format(value))
+    else:
+        printDebug("Hid Hella - Page doesnt support")
 
-def SetPoPo(state=0):
+def SetPoPo(state=0, overide=0):
     if(state == 1):
         SendVis(NP, NPicPOPO, 1)
     elif(state == 0):
         SendVis(NP, NPicPOPO, 0)
+
+    if overide == 0:
+        printDebug("Updated PoPo to {}".format(state))
+    else:
+        printDebug("Hid PoPo - Page doesnt support")
 
 def SetBLAlerts(pageChange, temp1, SRF, ICE): #BL ALerts Set Function
     global shownBLAlerts
@@ -567,10 +581,10 @@ def SetODO(value=0):            #ODO Set Function
     printDebug("Updated ODO {}".format(ODOVal))
 
 def SetGear(gear):              #Gear Set Function
-    global VarGear
-    VarGear = gear
-    SendVal(NT, NTextGear, VarGear)
-    printDebug("Updated Gear {}".format (VarGear))
+    global VarCurrentGear
+    VarCurrentGear = gear
+    SendVal(NT, NTextGear, VarCurrentGear)
+    printDebug("Updated Gear {}".format (VarCurrentGear))
 
 def PoPoShow():             #TODO Brakes
     global VarPOPO
@@ -1086,65 +1100,124 @@ def TempThread(force=0):
     #tTemp.start()
 
 def GearThread():
-    global VarGear
+    global VarCurrentGear
 
     #CAN magic to read cruise state
     f=open("LiveTests/VarCurrentGear.txt", "r")  
-    VarGear = str(f.read())
+    VarCurrentGear = str(f.read())
 
-    return VarGear
+    return VarCurrentGear
 
-def SpeedThread():
+def UpperNumberThread(force=0): #Upper "Page" Numbers Thread
+    '''Mode 1 - Speed Center 
+       Mode 2 - Speed Left
+       Mode 3 - RPM  '''
+
     global VarSpeed
+    global VarRPM
+    global VarGyroRoll
+    global VarGyroPitch
+    global VarUltraFro
+    global VarUltraRea
     global VarTopPage
+
+    #print(numforce)
+
     #CAN/Ard magic to read Brake & Hella state
     f=open("LiveTests/VarSpeed.txt", "r")  
     ReadSpeed = int(f.read())
+    f=open("LiveTests/VarRPM.txt", "r")  
+    ReadRPM = int(f.read())
+    f=open("LiveTests/VarGyroRoll.txt", "r")  
+    ReadGyroRoll = int(f.read())
+    f=open("LiveTests/VarGyroPitch.txt", "r")  
+    ReadGyroPitch = int(f.read())
+    f=open("LiveTests/VarUltraFro.txt", "r")  
+    ReadUltraFro= int(f.read())
+    f=open("LiveTests/VarUltraRea.txt", "r")  
+    ReadUltraRea = int(f.read())
 
-    if((VarTopPage == 1 or 3) and VarGear != "P"):
-        if(ReadSpeed != VarSpeed):
-            SendVal(NN, NNumCe, ReadSpeed)
-    if(VarTopPage == 5):
-        if(ReadSpeed != VarSpeed):
-            SendVal(NN, NNumLe, ReadSpeed)
-    VarSpeed = ReadSpeed
+    #This function adds 1 to the number vals to trick lower into refreshing, called typically with a upper page change
+    if(force == 1):    
+        VarSpeed     = VarSpeed     +1
+        VarRPM       = VarRPM       +1
+        VarGyroRoll  = VarGyroRoll  +1
+        VarGyroPitch = VarGyroPitch +1
+        VarUltraFro  = VarUltraFro  +1
+        VarUltraRea  = VarUltraRea  +1
+
+    #Speed
+    if((ReadSpeed != VarSpeed) and VarTopPage == 5):
+        VarSpeed = ReadSpeed
+        SendVal(NN, NNumLe, VarSpeed) 
+        printDebug("Updated MPH for page {} to {}. F={}". format(VarTopPage, VarSpeed, force))
+    if((ReadSpeed != VarSpeed) and VarTopPage in [1, 3]):
+        VarSpeed = ReadSpeed
+        SendVal(NN, NNumCe, VarSpeed)
+        printDebug("Updated MPH for page {} to {}. F={}". format(VarTopPage, VarSpeed, force))
+
+    #RPM
+    if((ReadRPM != VarRPM) and VarTopPage == 2):
+        VarRPM = ReadRPM
+        SendVal(NN, NNumCe, VarRPM)
+        printDebug("Updated RPM for page {} to {}. F={}". format(VarTopPage, VarRPM, force))
+
+    #Gyro
+    if(((ReadGyroPitch != VarGyroPitch or ReadGyroRoll != VarGyroRoll) and (VarTopPage == 3))):
+        VarGyroRoll = ReadGyroRoll
+        VarGyroPitch = ReadGyroPitch
+        SendVal(NN, NNumLe, VarGyroRoll)
+        SendVal(NN, NNumRi, VarGyroPitch)
+        printDebug("Updated Roll Gyro for page {} to {}. F={}". format(VarTopPage, VarGyroRoll, force))
+        printDebug("Updated Pitch Gyro for page {} to {}. F={}". format(VarTopPage, VarGyroPitch, force))
+
+    #Ultrasonic
+    if((ReadUltraFro != VarUltraFro or ReadUltraRea != VarUltraRea) and (VarTopPage == 4)):
+        VarUltraFro = ReadUltraFro
+        VarUltraRea = ReadUltraRea
+        SendVal(NN, NNumLe, VarUltraFro)
+        SendVal(NN, NNumRi, VarUltraRea)
+        printDebug("Updated Front Ultra for page {} to {}. F={}". format(VarTopPage, VarUltraFro, force))
+        printDebug("Updated Rear Ultra for page {} to {}. F={}". format(VarTopPage, VarUltraRea, force))
+    if((ReadUltraFro != VarUltraFro) and (VarTopPage == 5)):
+        VarUltraFro = ReadUltraFro
+        SendVal(NN, NNumCe, VarUltraFro)
+        printDebug("Updated Front Ultra for page {} to {}. F={}". format(VarTopPage, VarUltraFro, force))
+        
     
 
 #########################################################################################################################
 ##################* Non Threading Threads *##############################################################################
 #########################################################################################################################
-def UpperThread():           #TODO DEV EDITS & ADD CAN
+def UpperThread():           #TODO ADD CAN - DONEish 7/15/21
     global VarTopPage
     global VarHella
     global VarPOPO
     global HideHella
     global HidePoPo
-    global pageOveride
-    lastKnownPage = 1
-    updateHella   = 2
-    updatePoPo    = 2 
+    global VarCurrentGear
+    global updateHella
+    global updatePoPo  
+    global driveGearsList
+    allowedHellaPagesList = [0, 1, 2]
+    allowedPoPoPagesList = [0, 1, 2, 5]
+    forceNumUpdate = 0
 
-    #Get steering wheel controls
-    f=open("LiveTests/VarControls.txt", "r")   
-    SelectedPage = int(f.read())
-    if(pageOveride != 0):
-        #printDebug("Page Override: {}".format(pageOveride))     TODO DEV UNREMERK ME!!
-        SelectedPage = pageOveride
-        #pageOveride = 0                                         TODO DEV UNREMERK ME!!
+    #Get steering wheel controls and data
+    if VarCurrentGear in driveGearsList:
+        f=open("LiveTests/VarControls.txt", "r")   
+        SelectedPage = int(f.read())
+    elif VarCurrentGear not in driveGearsList:
+        SelectedPage = 1
     f=open("mydata/VarHella.txt", "r")  
     ReadVarHella = int(f.read())
     f=open("LiveTests/VarPopo.txt", "r")  
     ReadVarPoPo = int(f.read())
 
-    #Set Hella if changed
-    if(ReadVarHella != VarHella and HideHella == 0):
-        SetHella(ReadVarHella)
-    #Set PoPo if changed
-    if(ReadVarPoPo != VarPOPO and HidePoPo == 0):
-        SetPoPo(ReadVarPoPo)
-
-    #Pages checks & sets
-    if(SelectedPage != VarTopPage):
+    #Upper Pages checks & sets - DRIVE GEARS ONLY
+    if((SelectedPage != VarTopPage) and (VarCurrentGear in driveGearsList)):
+        VarTopPage = SelectedPage
+        forceNumUpdate = 1
         if(SelectedPage == 1):    #Speed
             SendPic(NPicUpperPannel, AssetPageMPH)
             SendVis(NN, NNumLe, 0)
@@ -1154,10 +1227,10 @@ def UpperThread():           #TODO DEV EDITS & ADD CAN
             HideHella   = 0
             updatePoPo  = 1
             HidePoPo    = 0
-            SendRef(NT, NTextTemp)
-            SendRef(NT, NTextHour)
-            SendRef(NT, NTextMin)
-            SpeedThread()
+            SendVis(NT, NTextTemp, 1)
+            SendVis(NT, NTextHour, 1)
+            SendVis(NT, NTextMin, 1)
+            UpperNumberThread()
         elif(SelectedPage == 2):  #RPM
             SendPic(NPicUpperPannel, AssetPageRPM)
             SendVis(NN, NNumLe, 0)
@@ -1220,19 +1293,53 @@ def UpperThread():           #TODO DEV EDITS & ADD CAN
             SendRef(NT, NTextHour)
             SendRef(NT, NTextMin)
     
-        if(updateHella == 1 and HideHella != 1):
-            SetHella(ReadVarHella)
-        elif(updateHella == 0 or HideHella == 1):
-            SetHella()
-        if(updatePoPo == 1 and HidePoPo != 1):
-            SetPoPo(ReadVarPoPo)
-        elif(updatePoPo == 0 or HidePoPo == 1):
-            SetPoPo()
-        printDebug("Changed Selected page to: {}".format(SelectedPage))
+        printDebug("Changed Selected page to: {}".format(SelectedPage))  
+
+    #Hella View Logic
+    if(VarTopPage not in allowedHellaPagesList and HideHella == 1):        #If one of the top pages is not compatable with specified alert, hide
+        SetHella(0, 1)
+        HideHella = 2
+    if((ReadVarHella != VarHella and HideHella == 0) or updateHella == 1): #If Hela has changed or forced update
+        VarHella = ReadVarHella
+        SetHella(VarHella)
+        HideHella = 0
+        updateHella = 0
+
+    #PoPo View Logic
+    if(VarTopPage not in allowedPoPoPagesList and HidePoPo == 1):       #If one of the top pages is not compatable with specified alert, hide
+        SetPoPo(0, 1)
+        HidePoPo = 2
+    if(ReadVarPoPo != VarPOPO and HidePoPo == 0 or updatePoPo == 1):    #If PoPo has changed or forced update
+        VarPOPO  = ReadVarPoPo
+        SetPoPo(VarPOPO)
+        HidePoPo = 0
+        updatePoPo = 0  
+
+
+
+    #Upper Page Number Handler - Drive Gears
+    UpperNumberThread(forceNumUpdate) 
+    '''if(VarCurrentGear in driveGearsList): 
+        if(SelectedPage == 1):    #Speed
+            UpperNumberThread(1)          #Call to update speed (mode 1 - speed-center)
+        elif(SelectedPage == 2):  #RPM
+            UpperNumberThread(3)          #Call to update speed (mode 3 - RPM-center)
+        elif(SelectedPage == 3):  #Gyro
+            GyroThread()            #Call the Gyro Thread
+            UpperNumberThread(1)          #Call to update speed (mode 1 - speed-center)
+        elif(SelectedPage == 4):  #UltraSonic
+            UltraSonicThread(3)     #Call UltraSonic Thread (Mode 3 - Front & Rear)
+        elif(SelectedPage == 5):  #Front Distance (unused)
+            UpperNumberThread(2)          #Call to update speed (mode 2 - speed-left)
+            UltraSonicThread(1)     #Call UltraSonic Thread (Mode 1 - Front)
+        elif(SelectedPage == 6):  #I/Set
+            pass'''
+
+    #Upper Page Number Handler - Reverse
+    if (VarCurrentGear == "R"):
+        UpperNumberThread(1)          #Call to update speed (mode 1 - speed-center)
 
     VarTopPage = SelectedPage
-    VarHella = ReadVarHella
-    VarPOPO  = ReadVarPoPo   
 
 def MillageThread():         #TODO
     pass
@@ -1296,6 +1403,10 @@ def CruiseThread():          #Handles everything cruise status! (State, Set Spee
 def CarStatsThread():
     pass
 
+def GyroThread():
+    pass
+
+
 def LightThread(option="Z"): # TODO For HL & Brakes REMEMBER to include all headlight options, (like ES OFF)
     global VarHeadlight
     global VarBrake
@@ -1351,7 +1462,7 @@ def BottomAlertThread():
     ReadVarBSDOff = int(f.read())
     f=open("LiveTests/VarSRFOff.txt", "r")  
     ReadVarSRFOff = int(f.read())
-    f=open("LiveTests/VarIceWarning.txt", "r")  
+    f=open("LiveTests\VarIceWarning.txt", "r")  
     ReadVarIceWarning = int(f.read())
     f=open("LiveTests/VarSysAlert.txt", "r")  
     ReadVarSysAlert = int(f.read())
@@ -1364,7 +1475,7 @@ def ArduinoThread():
 def ADASThread():      #TODO
     pass
 
-def UltraSonicThread(): #TODO
+def UltraSonicThread(mode): #TODO
     global VarFrontUS
     global VarRearUS
 
@@ -1374,7 +1485,7 @@ def UltraSonicThread(): #TODO
     ReadBSD = int(f.read())
 
 def RadarThread(isLDW="Z"):
-    global VarGear
+    global VarCurrentGear
     global VarBSD
     global VarRCTA
     global driveGearsList
@@ -1392,7 +1503,7 @@ def RadarThread(isLDW="Z"):
         state = "N"
     
     #Do sumthin if BSD detected while in drive
-    if(ReadBSD != VarBSD and VarGear in driveGearsList):
+    if(ReadBSD != VarBSD and VarCurrentGear in driveGearsList):
         VarBSD = ReadBSD
         if(ReadBSD != "0"):
             SetBSD(ReadBSD, "N") 
@@ -1400,7 +1511,7 @@ def RadarThread(isLDW="Z"):
             SetBSD("LR", "C")
 
     #Do sumthin if RCTA detected while in reverse
-    if(ReadRCTA != 0 and VarGear == "R"):
+    if(ReadRCTA != 0 and VarCurrentGear == "R"):
        RCTAShow(ReadRCTA)
     time.sleep(0.25)                       #TODO DELME USED CUZ FILES!!!!!!!
 
@@ -1423,107 +1534,119 @@ def CloseThreads():
 ######################* Loops *##########################################################################################
 #########################################################################################################################
 def DemoLoop():
-    whatDemo = "B"
+    whatDemo = "DS"
     printDebug("RUNNING DEMO PROGRAM!!!!!")
     GetSavedValues()
     
-   #Boot Sequence
-    SendBright(100)
-    SendPage(pageBoot)
-    SetTrip(TripVal)
-    SetODO()
-    TimeThread(1)
-    time.sleep(5)
+    #Boot Sequence
+    if(whatDemo == "B"):
+        SendBright(100)
+        SendPage(pageBoot)
+        SetTrip(TripVal)
+        SetODO()
+        TimeThread(1)
+        time.sleep(5)
+        whatDemo = "P"
     
-   #Park Sequence
-    SendPage(pagePark)
-    time.sleep(3.5)
-    TimeThread(1)
-    TempThread(1)
-    SetHella(1)
-    SetPoPo(1)
-    SetMPG()
-    SetTrip(TripVal)
-    SetFuel(FuelVal)
-    SetODO()
-    SetBLAlerts(1, 1, 1, 1)
-    SetBRAlerts(1, 1, 1)
-    time.sleep(5)
+    #Park Sequence
+    if(whatDemo == "P"):
+        SendPage(pagePark)
+        time.sleep(3.5)
+        TimeThread(1)
+        TempThread(1)
+        SetHella(1)
+        SetPoPo(1)
+        SetMPG()
+        SetTrip(TripVal)
+        SetFuel(FuelVal)
+        SetODO()
+        SetBLAlerts(1, 1, 1, 1)
+        SetBRAlerts(1, 1, 1)
+        time.sleep(5)
+        whatDemo = "DS"
     
-   #Drive Setup
-    SendPage(pageDrive)
-    TimeThread(1)
-    TempThread(1)
-    SetHella(1)
-    SetGear("D")
-    SetMPG()
-    SetTrip(TripVal)
-    SetFuel(FuelVal)
-    SetODO()
-    time.sleep(3)
+    #Drive Setup
+    if(whatDemo == "DS"):
+        SendPage(pageDrive)
+        TimeThread(1)
+        TempThread(1)
+        SetHella(1)
+        SetGear("D")
+        SetMPG()
+        SetTrip(TripVal)
+        SetFuel(FuelVal)
+        SetODO()
+        time.sleep(3)
+        whatDemo = "R"
 
-   #Reverse
-    SetGear("R")
-    SendPic(NPicCenterPannel, AssetRCTA1)
-    SendVis(NP, NPicCenterPannel, 1)
-    SendVis(NP, NPicLeftLane, 0)
-    SendVis(NP, NPicRightLane, 0)
-    SendVis(NN, NNumCe, 0)
-    SendVis(NP, NPicHella, 0)
-    SendPic(NPicUpperPannel, AssetPageUltra)
-    SendVal(NN, NNumLe, 12)
-    SendVal(NN, NNumRi, 0)
-    SendVis(NN, NNumLe, 1)
-    SendVis(NN, NNumRi, 1)
-    TimeThread(1)
-    TempThread(1)
-    time.sleep(5)
-    RCTAShow("L")
-    time.sleep(2)
-    RCTAShow("R")
-    time.sleep(2)
-    #ADD ULTRASONIC DIST
-    #time.sleep(2)
-    SendPic(NPicUpperPannel, AssetPageMPH)
-    SendRef(NP, NPicUpperPannel)
-    SendVis(NN, NNumLe, 0)
-    SendVis(NN, NNumCe, 1)
-    SendVis(NN, NNumRi, 0)
-    SendVis(NP, NPicHella, 1)
-    SendPic(NPicLeftLane, AssetLeftLaneWhite)
-    SendPic(NPicRightLane, AssetRightLaneWhite)
-    #SendVis(NP, NPicCenterPannel, 0)
-    SetGear("D")
-    time.sleep(2)
+    #Reverse
+    if(whatDemo == "R"):
+        SetGear("R")
+        SendPic(NPicCenterPannel, AssetRCTA1)
+        SendVis(NP, NPicCenterPannel, 1)
+        SendVis(NP, NPicLeftLane, 0)
+        SendVis(NP, NPicRightLane, 0)
+        SendVis(NP, NPicHella, 0)
+        SendPic(NPicUpperPannel, AssetPageUltra)
+        SendVal(NN, NNumLe, 12)
+        SendVal(NN, NNumRi, 0)
+        SendVis(NN, NNumLe, 1)
+        SendVis(NN, NNumCe, 0)
+        SendVis(NN, NNumRi, 1)
+        TimeThread(1)
+        TempThread(1)
+        time.sleep(5)
+        RCTAShow("L")
+        time.sleep(2)
+        RCTAShow("R")
+        time.sleep(2)
+        #ADD ULTRASONIC DIST
+        #time.sleep(2)
+        SendPic(NPicUpperPannel, AssetPageMPH)
+        SendRef(NP, NPicUpperPannel)
+        SendVis(NN, NNumLe, 0)
+        SendVis(NN, NNumCe, 1)
+        SendVis(NN, NNumRi, 0)
+        SendVis(NP, NPicHella, 1)
+        SendPic(NPicLeftLane, AssetLeftLaneWhite)
+        SendPic(NPicRightLane, AssetRightLaneWhite)
+        SendVis(NP, NPicLeftLane, 1)
+        SendVis(NP, NPicRightLane, 1)
+        SendVis(NP, NPicCenterPannel, 0)
+        SetGear("D")
+        time.sleep(2)
+        whatDemo = "D"
     
-   #Drive
+    #Drive
+    if(whatDemo == "D"):
+        time.sleep(10)
     
-
-   #Alerts Demo
-    SendPage(pageDrive)
-    time.sleep(1)
-    VarHeadlight = 1
-    VarFollowing = 1 
-    LDWShow(1)
-    time.sleep(1)
-    VarHeadlight = 1
-    VarFollowing = 0 
-    LDWShow(2)
-    time.sleep(1)
-    VarHeadlight = 0
-    VarFollowing = 0
-    LDWShow(3)
-    time.sleep(1)
-    AEBShow()
-    time.sleep(1)
-    PoPoShow()
-    time.sleep(1)
-    EyeSightShow(1)
-    time.sleep(3)
-    EyeSightShow(2)
-    time.sleep(3)
-    EyeSightShow(0)
-    time.sleep(3)
+    #Alerts Demo
+    if(whatDemo == "A"):
+        SendPage(pageDrive)
+        time.sleep(1)
+        VarHeadlight = 1
+        VarFollowing = 1 
+        LDWShow(1)
+        time.sleep(1)
+        VarHeadlight = 1
+        VarFollowing = 0 
+        LDWShow(2)
+        time.sleep(1)
+        VarHeadlight = 0
+        VarFollowing = 0
+        LDWShow(3)
+        time.sleep(1)
+        AEBShow()
+        time.sleep(1)
+        PoPoShow()
+        time.sleep(1)
+        EyeSightShow(1)
+        time.sleep(3)
+        EyeSightShow(2)
+        time.sleep(3)
+        EyeSightShow(0)
+        time.sleep(3)
 
 def WaitForStrt():   #TODO add arduino sinngling
     power = 0
@@ -1558,7 +1681,7 @@ def Startup():  #TODO Remote start magic
     time.sleep(3)
 
 def MainLoop():
-    global VarGear
+    global VarCurrentGear
     global driveGearList
     global VarTopPage
     global pageOveride
@@ -1569,10 +1692,10 @@ def MainLoop():
     inDriveLoop = 0
     
     while True:
-        if(VarGear == "B"):
+        if(VarCurrentGear == "B"):
             pass
 
-        elif(VarGear == "P"):
+        elif(VarCurrentGear == "P"):
             tempCounter = 0
             tTime.start()
             #tGear.start()
@@ -1582,7 +1705,7 @@ def MainLoop():
                 printDebug("Waiting for animation to complete:")
                 while(tempCounter < 40):
                     if(GearThread() in driveGearsList):
-                        #SendVal(NT, NTextGear, VarGear)
+                        #SendVal(NT, NTextGear, VarCurrentGear)
                         #SendVis(NT, NTextGear, 1)
                         inParkLoop = 0
                         inDriveLoop = 1
@@ -1602,26 +1725,27 @@ def MainLoop():
                 SetBLAlerts(1, VarBSDOff, VarSRFOff, VarIceWarning)
                 SetBRAlerts(1, VarSysAlert, VarParkBrake)
                 printDebug("Park init done, starting loop:")
-                while(inParkLoop == 1 and VarGear == "P"):
+                while(inParkLoop == 1 and VarCurrentGear == "P"):
                     if( GearThread() == 'D'):
                         inParkLoop = 0
                         inDriveLoop = 1
-                    #BLAlertThread
+                    UpperThread()
+                    BottomAlertThread()
                     #ButtonThread
                     #FuelThread
                     #LightThread
                     #PoPoThread
-                    VarGear = GearThread()
+                    VarCurrentGear = GearThread()
                     time.sleep(.33)
                     #CloseThreads()
 
-        elif(VarGear == "R"):
+        elif(VarCurrentGear == "R"):
             #Init
             lastKnownGear = "R"
             inRevLoop = 1
-            SetGear(VarGear)
+            SetGear(VarCurrentGear)
             SendPage(pageDrive)
-            SendVal(NT, NTextGear, VarGear)
+            SendVal(NT, NTextGear, VarCurrentGear)
             TimeThread(1)
             TempThread(1)
             #SetHella(VarHella)
@@ -1641,32 +1765,32 @@ def MainLoop():
             printDebug("Reverse init Done, starting loop:")
 
             while(inRevLoop == 1):
-                VarGear = GearThread()
-                if(lastKnownGear != VarGear):
-                    if(VarGear == "P"):
+                VarCurrentGear = GearThread()
+                if(lastKnownGear != VarCurrentGear):
+                    if(VarCurrentGear == "P"):
                         inParkLoop = 1
-                    elif(VarGear == "N" or "D" or VarGear.isdigit() == True):
+                    elif(VarCurrentGear == "N" or "D" or VarCurrentGear.isdigit() == True):
                         inDriveLoop = 1
                     SendVis(NP, NPicCenterPannel, 0)
                     SendVis(NP, NPicCenterPannel, 0)
                     SendVis(NP, NPicLeftLane, 1)
                     SendVis(NP, NPicRightLane, 1)
-                    SetGear(VarGear)
+                    SetGear(VarCurrentGear)
                     inRevLoop = 0
-                    lastKnownGear = VarGear
-                SpeedThread()
+                    lastKnownGear = VarCurrentGear
+                UpperNumberThread()
                 RadarThread()
                 ADASThread()
                 UpperThread()
                 LightThread("R")
         
-        elif(VarGear in driveGearsList):
+        elif(VarCurrentGear in driveGearsList):
             #Init
             lastKnownGear = "R"
             reverseInit = 1
-            SetGear(VarGear)
+            SetGear(VarCurrentGear)
             SendPage(pageDrive)
-            SendVal(NT, NTextGear, VarGear)
+            SendVal(NT, NTextGear, VarCurrentGear)
             TimeThread(1)
             TempThread(1)
             #SetHella(VarHella)
@@ -1683,18 +1807,18 @@ def MainLoop():
             #tLight.start()
             #Loop
             while(inDriveLoop == 1):
-                VarGear = GearThread()
-                if not VarGear in driveGearsList and VarGear != "R":
+                VarCurrentGear = GearThread()
+                if not VarCurrentGear in driveGearsList and VarCurrentGear != "R":
                     inDriveLoop = 0
                     inParkLoop = 1
-                elif(VarGear == "R"):
+                elif(VarCurrentGear == "R"):
                     inDriveLoop = 0
                     inRevLoop = 1
-                if(lastKnownGear != VarGear):
-                    SetGear(VarGear)
+                if(lastKnownGear != VarCurrentGear):
+                    SetGear(VarCurrentGear)
                     reverseInit = 1
-                    lastKnownGear = VarGear
-                SpeedThread()
+                    lastKnownGear = VarCurrentGear
+                UpperNumberThread()
                 RadarThread()
                 ADASThread()
                 CruiseThread()
@@ -1736,13 +1860,13 @@ tTime = multitimer.MultiTimer(interval=5, function=TimeThread, runonstart=False)
 #tGear = multitimer.MultiTimer(interval=1, function=GearThread, runonstart=False)
 tCruise = multitimer.MultiTimer(interval=1, function=CruiseThread, runonstart=False)
 #tTemp = multitimer.MultiTimer(interval=10, function=TempThread, runonstart=False)
-#tTspeed = multitimer.MultiTimer(interval=10, function=SpeedThread, runonstart=False)
+#tTspeed = multitimer.MultiTimer(interval=10, function=UpperNumberThread, runonstart=False)
 tLight = multitimer.MultiTimer(interval=0.25, function=LightThread, runonstart=False)
 #tAlert = multitimer.MultiTimer(interval=5, function=AlertThread, runonstart=False)
 
-while True:
-   DemoLoop()
-   exit()
+#while True:
+   #DemoLoop()
+   #exit()
 
 GetSavedValues()
 WaitForStrt()
@@ -1763,7 +1887,7 @@ MainLoop()
             #    TempThread()
             #   MillageThread()   
             
-            #SpeedThread()
+            #UpperNumberThread()
             #nextSequence = GearThread()
             #ADASThread()
              #CruiseThread()
