@@ -68,7 +68,8 @@ anishows = 5
 
 
 
-
+def sleepBy ():
+    time.sleep(.01)
 
 def send(cmd):
     ser.write(cmd)
@@ -132,17 +133,38 @@ def SendVis(type, id, isVis):
     ser.write(b'\x2C')
     ser.write(visbyte)
     ser.write(end_cmd)
+    sleepBy()
 
-def SendPic(id, asset):
+def SendPic(type, id, asset):
     #p26.pic=81
-    #70 (32 36)ID 2E 70 69 63 3D (38 31)Val (ff ff ff) terminator
+    #70(type) (32 36)ID 2E 70 69 63 3D (38 31)Val (ff ff ff) terminator
+    printDebug('Setting New Pic')
+    hexbyte = bytes(type, encoding='utf8')
     idbyte = str.encode(str(id))
+    cmdByte = str.encode(str('.pic='))
     assbyte = str.encode(str(asset))
-    ser.write(b'\x70')
+    ser.write(hexbyte)
     ser.write(idbyte)
-    ser.write(b'\x2E\x70\x69\x63\x3D')
+    ser.write(cmdByte)
     ser.write(assbyte)
     ser.write(end_cmd)
+    sleepBy()
+
+def SendCrop(type, id, asset):
+    #n1.picc=170
+    #6E   31   2E 70 69 63 63 3D 31 37 30  ff ff ff
+    #b'n' b'1' 2E 70 69 63    3D b'170'    b'\xff\xff\xff'
+    printDebug('Setting New Pic crop')
+    hexbyte = bytes(type, encoding='utf8')
+    idbyte = str.encode(str(id))
+    cmdByte = str.encode(str('.picc='))
+    assbyte = str.encode(str(asset))
+    ser.write(hexbyte)
+    ser.write(idbyte)
+    ser.write(cmdByte)
+    ser.write(assbyte)
+    ser.write(end_cmd)
+    sleepBy()
 
 def SendBright(value):
     #64 69 6D 73 3D 30(level) ff ff ff(teminator)
@@ -151,22 +173,30 @@ def SendBright(value):
     #ser.write(valbyte)
     #ser.write(end_cmd)
 
+def SendFont(type, id, val):
+    idbyte = str.encode(str(id))
+    if isinstance(val, str) or isinstance(val, int):
+        textbyte = str.encode(str(val))
+    elif isinstance(val, float):
+        textbyte = str.encode(str(float(val)))
+    else:
+        printDebug("Please provide str, int, or float for the id")
 
-#####################################################################################################################
-def AEBShow(brake, severity):
-    pass
-
-def LDWLShow(brake):
-    pass
-
-def LDWRShow(brake):
-    pass
-
-def SwayShow():
-    pass
-
-def RCTAShow(direction):
-    pass
-
+    if type == "t":
+        #74(type) 32(ID) 2E 66 6F 6E 74 3D 30(value) ff ff ff(end bytes)
+        ser.write(b'\x74')
+        ser.write(idbyte)
+        ser.write(b'\x2E\x66\x6F\x6E\x74\x3D')
+        ser.write(textbyte)
+        ser.write(end_cmd)
+    elif type == "n":
+        #6E(type) 32(id) 2E 66 6F 6E 74 3D 30(val) ff ff ff(end bytes)
+        ser.write(b'\x6E')
+        ser.write(idbyte)
+        ser.write(b'\x2E\x66\x6F\x6E\x74\x3D')
+        ser.write(textbyte)
+        ser.write(end_cmd)
+    printDebug("[From nextion.py] Changing font for {} to {}".format(id, val))
+    sleepBy()
 
 
