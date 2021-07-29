@@ -1,7 +1,7 @@
 import serial, time, platform, threading
 import pyfirmata
 from datetime import datetime
-from Support.NexSerialSends import ResetNextion, SendPage, SendVal, SendVis, SendBright, SendPic, SendRef
+from Support.NexSerialSends import ResetNextion, SendPage, SendVal, SendVis, SendBright, SendPic, SendRef, SendFont, SendCrop
 #from Support.NexSerialSends import PoPoShow
 from Support.SupportUtils import printDebug
 import multitimer
@@ -91,11 +91,21 @@ VarSysAlert        = 0
 VarParkBrake       = 0
 
 driveGearsList = ["N", "D", "1", "2", "3", "4", "5", "6"]
+Alert_List = []
+
+AlertBlocking = 0
+
 
 temp = 0
 
 updateHella   = 1
 updatePoPo    = 1 
+
+ignitionStartHour = 0
+ignitionStartMinn = 0
+ignitionTimerHour = 0
+ignitionTimerMinn = -1
+ignitionHours     = 0
 
 #---Timer Threads---
 tTime  = None
@@ -280,8 +290,60 @@ AssetPOPO1               = 141
 AssetPOPO2               = 142
 AssetPOPOBrake           = 143
 
-AssetUpperRS             = 155
+#AssetUpperRS             = 155 (removed)
 
+AssetAlertOPStart        = 147
+AssetAlertGrabWheelY     = 148
+AssetAlertGrabWheelR     = 149
+AssetAlertNotClear       = 150
+AssetAlertClear          = 151
+AssetAlertLaneChange     = 152
+AssetAlertOPUnAvai       = 153
+AssetAlertDepressBrake   = 154
+AssetAlertRSActive       = 155
+AssetAlertRSTakeOver     = 156
+AssetAlertSysWarning     = 157
+AssetAlertLDWOff         = 158
+AssetAlertAEBOff         = 159
+AssetAlertTCSOff         = 160
+AssetAlertNoKey          = 161
+#AssetAlertNoKey         = 162 (dupe)
+AssetAlertSeatbelt       = 163
+AssetAlertESNoView       = 164
+AssetAlertESCritical     = 165
+AssetAlertLowBattery     = 166
+AssetAlertLowOil         = 167
+AssetAlertTPSLow         = 168
+AssetAlertWasherLow      = 169
+#AssetAlertHourIgnition   = 170 (removed)
+AssetAlertConsiderRest   = 171
+AssetAlertLightsOn       = 172
+AssetAlertMoveToPark     = 173
+AssetAlertTurnEngineOff  = 174
+AssetAlertDoorAlert      = 175
+AssetAlertDoorWarning    = 176
+#AssetAlertDoorsAll      = 177 (UNUSED)
+
+Alert_Asset_List = [AssetAlertSysWarning, AssetAlertSeatbelt, AssetAlertDoorAlert, AssetAlertDoorWarning, 
+        AssetAlertESCritical, AssetAlertGrabWheelY, AssetAlertGrabWheelR, AssetAlertNotClear, 
+        AssetAlertLowBattery, AssetAlertLowOil, AssetAlertTPSLow, AssetAlertConsiderRest, AssetAlertESNoView, 
+        AssetAlertWasherLow, AssetAlertLaneChange, AssetAlertOPStart, AssetAlertClear, 
+        AssetAlertOPUnAvai, AssetAlertDepressBrake, AssetAlertRSActive, AssetAlertRSTakeOver, AssetAlertLDWOff, 
+        AssetAlertAEBOff, AssetAlertTCSOff, AssetAlertNoKey, AssetAlertMoveToPark, AssetAlertLightsOn, 
+        AssetAlertTurnEngineOff]
+
+Alert_Asset_Text_List = ["AssetAlertSysWarning", 'AssetAlertSeatbelt', 'AssetAlertDoorAlert', 'AssetAlertDoorWarning', 
+        'AssetAlertESCritical', 'AssetAlertGrabWheelY', 'AssetAlertGrabWheelR', 'AssetAlertNotClear', 
+        'AssetAlertLowBattery', 'AssetAlertLowOil', 'AssetAlertTPSLow', 'AssetAlertConsiderRest', 'AssetAlertESNoView', 
+        'AssetAlertWasherLow', 'AssetAlertLaneChange', 'AssetAlertOPStart', 'AssetAlertClear', 
+        'AssetAlertOPUnAvai', 'AssetAlertDepressBrake', 'AssetAlertRSActive', 'AssetAlertRSTakeOver', 'AssetAlertLDWOff', 
+        'AssetAlertAEBOff', 'AssetAlertTCSOff', 'AssetAlertNoKey', 'AssetAlertMoveToPark', 'AssetAlertLightsOn', 
+        'AssetAlertTurnEngineOff']
+
+Alert_Blocking_List = [148, 149, 150, 152, 154, 155, 156, 161, 163, 172, 174, 175, 176]
+
+Top_Page_Asset_List = [0, AssetPageMPH, AssetPageRPM, AssetPageGyro, AssetPageUltra, AssetPageSpeedDistance,
+                       AssetPageISet]
 
 #########################################################################################################################
 ####################* FUNCTION START *###################################################################################
@@ -378,7 +440,7 @@ def Update(page):
             #    if(lastKnownGear != VarCurrentGear):
             #        SetGear(VarCurrentGear)
             #        lastKnownGear = VarCurrentGear
-            #    SendPic(NPicCenterPannel, AssetRCTA1)
+            #    SendPic(NP, NPicCenterPannel, AssetRCTA1)
             #    SendVis(NP, NPicCenterPannel, 1)
             #SendVis(NP, NPicCenterPannel, 0)
 
@@ -395,7 +457,16 @@ def Update(page):
             if(VarCurrentGear == "P"):
                 print("im here")
                 break
-                        
+
+def RefUpper():
+    SendRef(NN, NNumLe)
+    SendRef(NN, NNumCe)
+    SendRef(NN, NNumRi) 
+    SendRef(NT, NTextTemp)
+    SendRef(NT, NTextHour)
+    SendRef(NT, NTextMin)
+    SendRef(NP, NPicHella)
+    SendRef(NP, NPicPOPO)                
 
 def RefCenter():
     SendRef(NP, NPicCruiseState)
@@ -417,10 +488,10 @@ def SetHella(value=0, overide=0):          #Hella Set Function  0-Off 1-Auto 2-O
         SendVis(NP, NPicHella, 0)
     elif value == 1: # If Set to Auto
         SendVis(NP, NPicHella, 1)
-        SendPic(NPicHella, AssetHellaAuto)
+        SendPic(NP, NPicHella, AssetHellaAuto)
     elif value == 2: #If Set to On
         SendVis(NP, NPicHella, 1)
-        SendPic(NPicHella, AssetHellaOn)
+        SendPic(NP, NPicHella, AssetHellaOn)
     
     VarHella = value
     if overide == 0:
@@ -460,23 +531,23 @@ def SetBLAlerts(pageChange, temp1, SRF, ICE): #BL ALerts Set Function
     #EX. If only the Ice warning is active, when the code reaches (IceWarning == 1) The shownBLAlerts counter will
     #Be 0 and place the alert in posistion 1
     if(BSDOff == 1):    #If the BSDOff warning is an active warning
-        SendPic(NPicBL1, AssetBSDOff)      #(place in pos1)
+        SendPic(NP, NPicBL1, AssetBSDOff)      #(place in pos1)
         printDebug("From BL Alerts: BSD Off")
         shownBLAlerts = shownBLAlerts + 1 #Increment counter
     if(SRFOff == 1):    #If the SRFOff warning is an active warning
         if(shownBLAlerts == 1):           #If One Shown Alert (place in pos2)
-            SendPic(NPicBL2, AssetSRFOff)
+            SendPic(NP, NPicBL2, AssetSRFOff)
         elif(shownBLAlerts == 0):         #If No other shown Alerts (place in pos1)
-            SendPic(NPicBL1, AssetSRFOff)
+            SendPic(NP, NPicBL1, AssetSRFOff)
         printDebug("From BL Alerts: SRF Off")
         shownBLAlerts = shownBLAlerts + 1 #Increment counter
     if(IceWarning == 1):    #If the Ice warning is an active warning
         if(shownBLAlerts == 2):           #If Two Shown Alerts (place in pos3)
-            SendPic(NPicBL3, AssetIce)
+            SendPic(NP, NPicBL3, AssetIce)
         elif(shownBLAlerts == 1):         #If One Shown Alert (place in pos2)
-            SendPic(NPicBL2, AssetIce)
+            SendPic(NP, NPicBL2, AssetIce)
         elif(shownBLAlerts == 0):         #If No other shown Alerts (place in pos1)
-            SendPic(NPicBL1, AssetIce)
+            SendPic(NP, NPicBL1, AssetIce)
         printDebug("From BL Alerts: Ice Warning")
         shownBLAlerts = shownBLAlerts + 1 #Increment counter
 
@@ -513,13 +584,13 @@ def SetBRAlerts(pageChange, sys, park):       #BR Alerts Set Function
     #EX. If only the SysAlert is active, when the code reaches (SysAlert == 1) The shownBRAlerts counter will
     #Be 0 and place the alert in posistion 1
     if(parkBrake == 1):    #If the BSDOff warning is an active warning
-        SendPic(NPicBR1, AssetParkBrake)      #(place in pos1)
+        SendPic(NP, NPicBR1, AssetParkBrake)      #(place in pos1)
         shownBRAlerts = shownBRAlerts + 1 #Increment counter
     if(sysAlert == 1):    #If the SRFOff warning is an active warning
         if(shownBRAlerts == 1):           #If One Shown Alert (place in pos2)
-            SendPic(NPicBR2, AssetSysAlert)
+            SendPic(NP, NPicBR2, AssetSysAlert)
         elif(shownBRAlerts == 0):         #If No other shown Alerts (place in pos1)
-            SendPic(NPicBR1, AssetSysAlert)
+            SendPic(NP, NPicBR1, AssetSysAlert)
         shownBRAlerts = shownBRAlerts + 1 #Increment counter
 
     #Show the correct ammount of box's
@@ -552,12 +623,12 @@ def SetTrip(mode, value=0):     #Trip Set Function
     if(mode == "A"):   #TripA
         TripaVal = value
         SendVal(NT, NTextTrip, TripaVal)
-        SendPic(NPicTrip, AssetTripA)
+        SendPic(NP, NPicTrip, AssetTripA)
         printDebug("Updated Trip to {}: {}".format(TripVal, TripaVal))
     elif(mode == "B"): #TripB
         TripbVal = value
         SendVal(NT, NTextTrip, TripbVal)
-        SendPic(NPicTrip, AssetTripB)
+        SendPic(NP, NPicTrip, AssetTripB)
         printDebug("Updated Trip to {}: {}".format(TripVal, TripbVal))
 
 def SetFuel(value=1000):        #Fuel Set Function
@@ -567,10 +638,10 @@ def SetFuel(value=1000):        #Fuel Set Function
 
     if(FuelVal <= 25): #Used when init is called to get the saved value from the stored variable
             SendVal(NT, NTextFuel, FuelVal)
-            SendPic(NPicFuel, AssetFuelLow)
+            SendPic(NP, NPicFuel, AssetFuelLow)
     elif(FuelVal >= 26):           #Used to pass in a value to set & save
             SendVal(NT, NTextFuel, FuelVal)
-            SendPic(NPicFuel, AssetFuelNorm)
+            SendPic(NP, NPicFuel, AssetFuelNorm)
     printDebug("Updated Fuel to {}%".format(FuelVal))
 
 def SetODO(value=0):            #ODO Set Function
@@ -591,9 +662,9 @@ def PoPoShow():             #TODO Brakes
     anicount = 0
     SendVis(NP, NPicCenterPannel, 1)
     while(anicount <= anishows/2):
-        SendPic(NPicCenterPannel, AssetPOPO1)
+        SendPic(NP, NPicCenterPannel, AssetPOPO1)
         time.sleep(0.33)
-        SendPic(NPicCenterPannel, AssetPOPO2)
+        SendPic(NP, NPicCenterPannel, AssetPOPO2)
         time.sleep(0.33)
         anicount = anicount +1
         printDebug("From POPO Show: Count {}/{}".format(anicount, anishows/2))
@@ -672,7 +743,7 @@ def LDWShow(mode):          #TODO Brakes # 1-Left 2-Right 3-Sway
                 elif(VarHeadlight == 0 and VarFollowing == 0):
                     selectedFrame = AssetLDWL_Y
 
-        SendPic(30, selectedFrame)
+        SendPic(NP, 30, selectedFrame)
         SendVis(NP, 30, 1)
         time.sleep(0.33)
         printDebug("FROM LDW ANIMATION {}: {} -Count {}/{} -Frame {}".format(mode, frameEvenOdd, anicount, anishows, selectedFrame))
@@ -685,7 +756,7 @@ def LDWShow(mode):          #TODO Brakes # 1-Left 2-Right 3-Sway
 def RCTAShow(mode):
     global VarBrake
     anicount = 1
-    SendPic(NPicCenterPannel, AssetRCTA2)
+    SendPic(NP, NPicCenterPannel, AssetRCTA2)
     while(anicount <= anishows+2):
         selectedFrame = 0
         frameEvenOdd = 0
@@ -693,10 +764,10 @@ def RCTAShow(mode):
         if (anicount % 2) == 0: #Even Frame
             frameEvenOdd = "E" 
             if(mode == "L"):
-                SendPic(NPicBSDRCTAL, AssetRCTAL)
+                SendPic(NP, NPicBSDRCTAL, AssetRCTAL)
                 SendVis(NP, NPicBSDRCTAL, 1)
             elif(mode == "R"):
-                SendPic(NPicBSDRCTAR, AssetRCTAR)
+                SendPic(NP, NPicBSDRCTAR, AssetRCTAR)
                 SendVis(NP, NPicBSDRCTAR, 1)
         else:                   #Odd Frame 
             frameEvenOdd =  "O"  
@@ -715,7 +786,7 @@ def RCTAShow(mode):
     SendVis(NP, NPicBSDRCTAL, 0)
     SendVis(NP, NPicBSDRCTAR, 0)
     time.sleep(1)
-    SendPic(NPicCenterPannel, AssetRCTA1)
+    SendPic(NP, NPicCenterPannel, AssetRCTA1)
     SendRef(NP, NPicBrakePOPORCTA)
     
 def AEBShow():              #TODO BRAKES
@@ -732,7 +803,7 @@ def AEBShow():              #TODO BRAKES
             frameEvenOdd = "O"
             selectedFrame = AssetAEB3
 
-        SendPic(30, selectedFrame)
+        SendPic(NP, 30, selectedFrame)
         SendVis(NP, 30, 1)
         time.sleep(0.33)
         printDebug("FROM AEB ANIMATION: {} -Count {}/{} -Frame {}".format(frameEvenOdd, anicount, anishows, selectedFrame))
@@ -745,12 +816,12 @@ def AEBShow():              #TODO BRAKES
 def EyeSightShow(command):               # 0-Clear 1-Off 2-Critical
     global VarHeadlight
     if(command == 0):   #Clear
-        SendPic(NPicLeftLane, AssetLeftLaneWhite)
-        SendPic(NPicRightLane, AssetRightLaneWhite)
+        SendPic(NP, NPicLeftLane, AssetLeftLaneWhite)
+        SendPic(NP, NPicRightLane, AssetRightLaneWhite)
     elif(command == 1): #Cant See/Off
-        SendPic(NPicLeftLane, AssetESOff)
+        SendPic(NP, NPicLeftLane, AssetESOff)
     elif(command == 2): #Critical Fail
-        SendPic(NPicLeftLane, AssetESCrit)
+        SendPic(NP, NPicLeftLane, AssetESCrit)
     printDebug("EyeSight Status: {}".format(command))
 
 def SetCruise(state, headlight, setspeed, distance=0, following=0, brake=0): # 0-Off 1-StdOn 2-StdActive 3-AdaOn 4-AdaActive #CLEANME
@@ -770,7 +841,7 @@ def SetCruise(state, headlight, setspeed, distance=0, following=0, brake=0): # 0
         SetLaneLight("LR", "white")
         if(headlight == 1):
             SetHeadlight("LR", "white")
-        SendPic(NPicCruiseState, AssetCruiseO)
+        SendPic(NP, NPicCruiseState, AssetCruiseO)
         SendVis(NP, NPicCruiseState, 1)
         SetCruiseSpeed(setspeed)
         SendVis(NP, NPicFollowingCar, 0)
@@ -781,7 +852,7 @@ def SetCruise(state, headlight, setspeed, distance=0, following=0, brake=0): # 0
         SetLaneLight("LR", "white")
         if(headlight == 1):
             SetHeadlight("LR", "white")
-        SendPic(NPicCruiseState, AssetCruiseA)
+        SendPic(NP, NPicCruiseState, AssetCruiseA)
         SendVis(NP, NPicCruiseState, 1)
         SetCruiseSpeed(setspeed)
         SendVis(NP, NPicFollowingCar, 0)
@@ -792,7 +863,7 @@ def SetCruise(state, headlight, setspeed, distance=0, following=0, brake=0): # 0
         SetLaneLight("LR", "white")
         if(headlight == 1):
             SetHeadlight("LR", "white")
-        SendPic(NPicCruiseState, AssetACCruiseO)   
+        SendPic(NP, NPicCruiseState, AssetACCruiseO)   
         SendVis(NP, NPicCruiseState, 1)                    #SOMEWHERE SETTING BRAKES TO OFF WHEN COME FROM 4 to any
         SetCruiseSpeed(setspeed)
         SendVis(NP, NPicFollowingCar, 0)
@@ -804,7 +875,7 @@ def SetCruise(state, headlight, setspeed, distance=0, following=0, brake=0): # 0
         SetLaneLight("LR", "blue")
         if(headlight == 1):
             SetHeadlight("LR", "blue")
-        SendPic(NPicCruiseState, AssetACCruiseA)
+        SendPic(NP, NPicCruiseState, AssetACCruiseA)
         SendVis(NP, NPicCruiseState, 1)
         SetCruiseSpeed(setspeed)
         SetCruiseDist(distance) 
@@ -822,14 +893,14 @@ def SetLaneLight(side, color): #TODO
     global VarIsRainbow
     if(side == "LR"):   #All Lines
         if(color == "white"):
-            SendPic(NPicLeftLane , AssetLeftLaneWhite)
-            SendPic(NPicRightLane, AssetRightLaneWhite)
+            SendPic(NP, NPicLeftLane , AssetLeftLaneWhite)
+            SendPic(NP, NPicRightLane, AssetRightLaneWhite)
         elif(color == "blue" and VarIsRainbow == 0):
-            SendPic(NPicLeftLane , AssetLeftLaneBlue)
-            SendPic(NPicRightLane, AssetRightLaneBlue)
+            SendPic(NP, NPicLeftLane , AssetLeftLaneBlue)
+            SendPic(NP, NPicRightLane, AssetRightLaneBlue)
         elif(color == "blue" and VarIsRainbow == 1):
-            SendPic(NPicLeftLane , AssetLeftLaneBlueRain)
-            SendPic(NPicRightLane, AssetRightLaneBlueRain)
+            SendPic(NP, NPicLeftLane , AssetLeftLaneBlueRain)
+            SendPic(NP, NPicRightLane, AssetRightLaneBlueRain)
     elif(side == "L"): #Left Line
         if(color == "green" and VarIsRainbow == 0):
             pass
@@ -896,14 +967,14 @@ def SetHeadlight(side, color="white"): #TODO
     global VarIsRainbow
     if(side == "LR"):   #All Lines
         if(color == "white"):
-            SendPic(NPicHeadlightLeft , AssetHLLeftWhite)
-            SendPic(NPicHeadlightRight, AssetHLRightWhite)
+            SendPic(NP, NPicHeadlightLeft , AssetHLLeftWhite)
+            SendPic(NP, NPicHeadlightRight, AssetHLRightWhite)
         elif(color == "blue" and VarIsRainbow == 0):
-            SendPic(NPicHeadlightLeft , AssetHLLeftBlue)
-            SendPic(NPicHeadlightRight, AssetHLRightBlue)
+            SendPic(NP, NPicHeadlightLeft , AssetHLLeftBlue)
+            SendPic(NP, NPicHeadlightRight, AssetHLRightBlue)
         elif(color == "blue" and VarIsRainbow == 1):
-            SendPic(NPicHeadlightLeft , AssetHLLeftBlueRain)
-            SendPic(NPicHeadlightRight, AssetHLRightBlueRain)
+            SendPic(NP, NPicHeadlightLeft , AssetHLLeftBlueRain)
+            SendPic(NP, NPicHeadlightRight, AssetHLRightBlueRain)
     elif(side == "L"): #Left Line
         if(color == "green" and VarIsRainbow == 0):
             pass
@@ -946,23 +1017,23 @@ def SetFollowing(headlight, clear=0):          #Pass in headlight, or nothing to
     if(clear == 0):
         #If no headlight or rainbow road
         if(headlight == 0 and VarIsRainbow == 0):
-            SendPic(NPicFollowingCar, AssetFollowing)
+            SendPic(NP, NPicFollowingCar, AssetFollowing)
         #If Headlight and no rainbow road
         elif(headlight == 1 and VarIsRainbow == 0):
-            SendPic(NPicFollowingCar, AssetFollowingHL)
+            SendPic(NP, NPicFollowingCar, AssetFollowingHL)
         #If no headlight but rainbow road
         elif(headlight == 0 and VarIsRainbow == 1):
-            SendPic(NPicFollowingCar, AssetFollowingRain)
+            SendPic(NP, NPicFollowingCar, AssetFollowingRain)
         #If Headlight and rainbow road
         elif(headlight == 1 and VarIsRainbow == 1):
-            SendPic(NPicFollowingCar, AssetFollowingHLRain)
+            SendPic(NP, NPicFollowingCar, AssetFollowingHLRain)
 
         SendVis(NP, NPicFollowingCar, 1)
         printDebug("Set Following car")
     #If no value was passed in, clear following car
     else:
         SendVis(NP, NPicFollowingCar, 0)
-        SendPic(NPicFollowingCar, AssetFollowing)
+        SendPic(NP, NPicFollowingCar, AssetFollowing)
         printDebug("Removed Following car")
 
 def SetBrake(mode="z", frame=0):
@@ -970,41 +1041,41 @@ def SetBrake(mode="z", frame=0):
     global VarCruiseState
     statetext = ""
     if(mode == "main" and VarCruiseState <= 4):
-        SendPic(NPicBrakeMainAEB, AssetMainBrake)
+        SendPic(NP, NPicBrakeMainAEB, AssetMainBrake)
         SendVis(NP, NPicBrakeMainAEB, 1)
         statetext = ("main - ON")
     elif(mode == "main" and VarCruiseState == 4 and VarIsRainbow == 1):
-        SendPic(NPicBrakeMainAEB, AssetMainBrakeRainbow)
+        SendPic(NP, NPicBrakeMainAEB, AssetMainBrakeRainbow)
         SendVis(NP, NPicBrakeMainAEB, 1)
         statetext = ("main with rainbow")
     elif(mode == "aeb"):
-        SendPic(NPicBrakeMainAEB, AssetAEBBrake)
+        SendPic(NP, NPicBrakeMainAEB, AssetAEBBrake)
         SendVis(NP, NPicBrakeMainAEB, 1)
         statetext = ("AEB")
     elif(mode == "ldwl"):
         if(frame % 2): #Even Frame (Yellow)
-            SendPic(NPicBrakeMainAEB, AssetLDWL_Y_Brake)
+            SendPic(NP, NPicBrakeMainAEB, AssetLDWL_Y_Brake)
             SendVis(NP, NPicBrakeLDW, 1)
             statetext = ("LDWL Yellow")
         else:          #Odd Frame (Blue)
-            SendPic(NPicBrakeMainAEB, AssetLDWL_B_Brake)
+            SendPic(NP, NPicBrakeMainAEB, AssetLDWL_B_Brake)
             SendVis(NP, NPicBrakeLDW, 1)
             statetext = ("LDWL Blue")
     elif(mode == "ldwr"):
         if(frame % 2): #Even Frame (Yellow)
-            SendPic(NPicBrakeMainAEB, AssetLDWR_Y_Brake)
+            SendPic(NP, NPicBrakeMainAEB, AssetLDWR_Y_Brake)
             SendVis(NP, NPicBrakeLDW, 1)
             statetext = ("LDWR Yellow")
         else:          #Odd Frame (Blue)
-            SendPic(NPicBrakeMainAEB, AssetLDWR_B_Brake)
+            SendPic(NP, NPicBrakeMainAEB, AssetLDWR_B_Brake)
             SendVis(NP, NPicBrakeLDW, 1)
             statetext = ("LDWR Blue")
     elif(mode == "popo"):
-        SendPic(NPicBrakeMainAEB, AssetPOPOBrake)
+        SendPic(NP, NPicBrakeMainAEB, AssetPOPOBrake)
         SendVis(NP, NPicBrakePOPORCTA, 1)
         statetext = ("POPO")
     elif(mode == "rcta"):
-        SendPic(NPicBrakeMainAEB, ASSETRCTABrake)
+        SendPic(NP, NPicBrakeMainAEB, ASSETRCTABrake)
         SendVis(NP, NPicBrakePOPORCTA, 1)
         statetext = ("RCTA")
     else:  
@@ -1017,15 +1088,15 @@ def SetBrake(mode="z", frame=0):
 def SetBSD(side, state="N"):              #TODO ADD LR LDW/SWAY ANI
     if(side == "L"):      #BSD Left
         if(state == "N"):     #Normal
-            SendPic(NPicBSDRCTAL, AssetBSDLNorm)
+            SendPic(NP, NPicBSDRCTAL, AssetBSDLNorm)
             SendVis(NP, NPicBSDRCTAL, 1)
             SendVis(NP, NPicBSDRCTAR, 0)
         elif(state == "E"):   #Even frame (from LDW)
-            SendPic(NPicBSDRCTAL, AssetBSDLYell)
+            SendPic(NP, NPicBSDRCTAL, AssetBSDLYell)
             SendVis(NP, NPicBSDRCTAL, 1)
             SendVis(NP, NPicBSDRCTAR, 0)
         elif(state == "O"):   #Odd frame (from LDW)
-            SendPic(NPicBSDRCTAL, AssetBSDLBlue)
+            SendPic(NP, NPicBSDRCTAL, AssetBSDLBlue)
             SendVis(NP, NPicBSDRCTAL, 1)
             SendVis(NP, NPicBSDRCTAR, 0)
         elif(state == "C"):   #Cancel
@@ -1033,15 +1104,15 @@ def SetBSD(side, state="N"):              #TODO ADD LR LDW/SWAY ANI
             SendVis(NP, NPicBSDRCTAR, 0)
     elif(side == "R"):    #BSD Left
         if(state == "N"):     #Normal
-            SendPic(NPicBSDRCTAR, AssetBSDRNorm)
+            SendPic(NP, NPicBSDRCTAR, AssetBSDRNorm)
             SendVis(NP, NPicBSDRCTAL, 0)
             SendVis(NP, NPicBSDRCTAR, 1)
         elif(state == "E"):   #Even frame (from LDW)
-            SendPic(NPicBSDRCTAR, AssetBSDRYell)
+            SendPic(NP, NPicBSDRCTAR, AssetBSDRYell)
             SendVis(NP, NPicBSDRCTAL, 0)
             SendVis(NP, NPicBSDRCTAR, 1)
         elif(state == "O"):   #Odd frame (from LDW)
-            SendPic(NPicBSDRCTAR, AssetBSDRBlue)
+            SendPic(NP, NPicBSDRCTAR, AssetBSDRBlue)
             SendVis(NP, NPicBSDRCTAL, 0)
             SendVis(NP, NPicBSDRCTAR, 1)
         elif(state == "C"):   #Cancel
@@ -1049,15 +1120,15 @@ def SetBSD(side, state="N"):              #TODO ADD LR LDW/SWAY ANI
             SendVis(NP, NPicBSDRCTAR, 0)
     elif(side == "LR"):
         if(state == "N"):     #Normal
-            SendPic(NPicBSDRCTAL, AssetBSDLNorm)
-            SendPic(NPicBSDRCTAR, AssetBSDRNorm)
+            SendPic(NP, NPicBSDRCTAL, AssetBSDLNorm)
+            SendPic(NP, NPicBSDRCTAR, AssetBSDRNorm)
             SendVis(NP, NPicBSDRCTAL, 1)
             SendVis(NP, NPicBSDRCTAR, 1)
         elif(state == "E"):   #Even frame (from LDW) #TODO 
-            SendPic(NPicBSDRCTAL, AssetBSDLYell)
+            SendPic(NP, NPicBSDRCTAL, AssetBSDLYell)
             SendVis(NP, NPicBSDRCTAL, 1)
         elif(state == "O"):   #Odd frame (from LDW)  #TODO
-            SendPic(NPicBSDRCTAL, AssetBSDLBlue)
+            SendPic(NP, NPicBSDRCTAL, AssetBSDLBlue)
             SendVis(NP, NPicBSDRCTAL, 1)
         elif(state == "C"):   #Cancel
             SendVis(NP, NPicBSDRCTAL, 0)
@@ -1069,7 +1140,7 @@ def SetBSD(side, state="N"):              #TODO ADD LR LDW/SWAY ANI
 #########################################################################################################################
 ######################* Threads *########################################################################################
 #########################################################################################################################
-def RemoteStartThread():
+def RemoteStartThread():#TODO Finish for production
     global isRemoteStarted
     time.sleep(1)
     isRemoteStarted = 0 # DEV EDIT ME
@@ -1078,14 +1149,39 @@ def RemoteStartThread():
 def TimeThread(force=0):
     global hour
     global minn
+    global AlertBlocking
+    global ignitionTimerHour
+    global ignitionTimerMinn
+    global ignitionHours
+
     now = datetime.now()
-    temptime = now.strftime("%M")
-    if(temptime != minn or force == 1):
+    tempminn = now.strftime("%M")
+    if((tempminn != minn or force == 1) and AlertBlocking == 0):
         hour = now.strftime("%I")
         minn = now.strftime("%M")
         SendVal(NT, NTextHour, hour)
         SendVal(NT, NTextMin, minn)
         printDebug("Update Time. F={}".format(force))
+
+    if(tempminn != minn ):
+        ignitionTimerMinn + 1
+        if ignitionTimerMinn > 59:
+            ignitionTimerMinn = 0
+            ignitionTimerHour + 1
+            
+    if(ignitionHours != ignitionTimerHour):
+        ignitionHours = ignitionTimerHour
+        printDebug("{} hour(s) since ignition ON".format(ignitionHours))
+        SendCrop(NN, NNumCe, AssetAlertHourIgnition)
+        SendFont(NN, NNumCe, 4)
+        SendVal(NN, NNumCe, ignitionHours)
+        time.sleep(5)
+        SendCrop(NN, NNumCe, AssetPageMPH)
+        SendFont(NN, NNumCe, 0)
+        SendVal(NN, NNumCe, 0)
+
+
+    
 
 def TempThread(force=0):
     #global tTemp
@@ -1109,10 +1205,6 @@ def GearThread():
     return VarCurrentGear
 
 def UpperNumberThread(force=0): #Upper "Page" Numbers Thread
-    '''Mode 1 - Speed Center 
-       Mode 2 - Speed Left
-       Mode 3 - RPM  '''
-
     global VarSpeed
     global VarRPM
     global VarGyroRoll
@@ -1121,7 +1213,6 @@ def UpperNumberThread(force=0): #Upper "Page" Numbers Thread
     global VarUltraRea
     global VarTopPage
 
-    #print(numforce)
 
     #CAN/Ard magic to read Brake & Hella state
     f=open("LiveTests/VarSpeed.txt", "r")  
@@ -1184,6 +1275,108 @@ def UpperNumberThread(force=0): #Upper "Page" Numbers Thread
         SendVal(NN, NNumCe, VarUltraFro)
         printDebug("Updated Front Ultra for page {} to {}. F={}". format(VarTopPage, VarUltraFro, force))
         
+def AlertThread():
+    global AlertBlocking
+    HourIgAlert = 0
+    DoorAlert   = 0
+    #CAN/Ard magic to read Brake & Hella state
+
+    # for n in x:
+    if True:
+        f=open("LiveTests/Alerts/AssetAlertOPStart.txt", "r")  #1
+        ReadAlertOPStart = int(f.read())
+        f=open("LiveTests/Alerts/AssetAlertGrabWheelY.txt", "r")  #2
+        ReadAlertGrabWheelY = int(f.read())
+        f=open("LiveTests/Alerts/AssetAlertGrabWheelR.txt", "r")  #3
+        ReadAlertGrabWheelR = int(f.read())
+        f=open("LiveTests/Alerts/AssetAlertNotClear.txt", "r")  #4
+        ReadAlertNotClear = int(f.read())
+        f=open("LiveTests/Alerts/AssetAlertClear.txt", "r")  #5
+        ReadAlertClear = int(f.read())
+        f=open("LiveTests/Alerts/AssetAlertLaneChange.txt", "r")  #6
+        ReadAlertLaneChange = int(f.read())
+        f=open("LiveTests/Alerts/AssetAlertOPUnAvai.txt", "r")  #7
+        ReadAlertOPUnAvai = int(f.read())
+        f=open("LiveTests/Alerts/AssetAlertDepressBrake.txt", "r")  #8
+        ReadAlertDepressBrake = int(f.read())
+        f=open("LiveTests/Alerts/AssetAlertRSActive.txt", "r")  #9
+        ReadAlertRSActive = int(f.read())
+        f=open("LiveTests/Alerts/AssetAlertRSTakeOver.txt", "r")  #10
+        ReadAlertRSTakeOver = int(f.read())
+        f=open("LiveTests/Alerts/AssetAlertSysWarning.txt", "r")  #11
+        ReadAlertSysWarning = int(f.read())
+        f=open("LiveTests/Alerts/AssetAlertLDWOff.txt", "r")  #12
+        ReadAlertLDWOff = int(f.read())
+        f=open("LiveTests/Alerts/AssetAlertAEBOff.txt", "r")  #13
+        ReadAlertAEBOff = int(f.read())
+        f=open("LiveTests/Alerts/AssetAlertTCSOff.txt", "r")  #14
+        ReadAlertTCSOff = int(f.read())
+        f=open("LiveTests/Alerts/AssetAlertNoKey.txt", "r")  #15
+        ReadAlertNoKey = int(f.read())
+        f=open("LiveTests/Alerts/AssetAlertSeatbelt.txt", "r")  #16
+        ReadAlertSeatbelt = int(f.read())
+        f=open("LiveTests/Alerts/AssetAlertESNoView.txt", "r")  #17
+        ReadAlertESNoView = int(f.read())
+        f=open("LiveTests/Alerts/AssetAlertESCritical.txt", "r")  #18
+        ReadAlertESCritical = int(f.read())
+        f=open("LiveTests/Alerts/AssetAlertLowBattery.txt", "r")  #19
+        ReadAlertLowBattery = int(f.read())
+        f=open("LiveTests/Alerts/AssetAlertLowOil.txt", "r")  #20
+        ReadAlertLowOil = int(f.read())
+        f=open("LiveTests/Alerts/AssetAlertTPSLow.txt", "r")  #21
+        ReadAlertTPSLow = int(f.read())
+        f=open("LiveTests/Alerts/AssetAlertWasherLow.txt", "r")  #22
+        ReadAlertWasherLow = int(f.read())
+        #f=open("LiveTests/Alerts/AssetAlertHourIgnition.txt", "r")  #23 (removed)
+        #ReadAlertHourIgnition = int(f.read())
+        f=open("LiveTests/Alerts/AssetAlertConsiderRest.txt", "r")  #24
+        ReadAlertConsiderRest = int(f.read())
+        f=open("LiveTests/Alerts/AssetAlertLightsOn.txt", "r")  #25
+        ReadAlertLightsOn = int(f.read())
+        f=open("LiveTests/Alerts/AssetAlertMoveToPark.txt", "r")  #26
+        ReadAlertMoveToPark = int(f.read())
+        f=open("LiveTests/Alerts/AssetAlertTurnEngineOff.txt", "r")  #27
+        ReadAlertTurnEngineOff = int(f.read())
+        f=open("LiveTests/Alerts/AssetAlertDoorAlert.txt", "r")  #28
+        ReadAlertDoorAlert = int(f.read())
+        f=open("LiveTests/Alerts/AssetAlertDoorWarning.txt", "r")  #29
+        ReadAlertDoorWarning = int(f.read())
+
+    Alert_List = [ReadAlertSysWarning, ReadAlertSeatbelt, ReadAlertDoorAlert, ReadAlertDoorWarning, 
+        ReadAlertESCritical, ReadAlertGrabWheelY, ReadAlertGrabWheelR, ReadAlertNotClear, 
+        ReadAlertLowBattery, ReadAlertLowOil, ReadAlertTPSLow, ReadAlertConsiderRest, ReadAlertESNoView, 
+        ReadAlertWasherLow, ReadAlertLaneChange, ReadAlertOPStart, ReadAlertClear, 
+        ReadAlertOPUnAvai, ReadAlertDepressBrake, ReadAlertRSActive, ReadAlertRSTakeOver, ReadAlertLDWOff, 
+        ReadAlertAEBOff, ReadAlertTCSOff, ReadAlertNoKey, ReadAlertMoveToPark, ReadAlertLightsOn, 
+        ReadAlertTurnEngineOff]
+
+    for position, alert in enumerate(Alert_List):
+        if alert == 1:
+            AlertBlocking = 1
+            SendPic(NP, NPicUpperPannel, Alert_Asset_List[position])
+            printDebug("Showing Alert {} : Blocking = {}".format(Alert_Asset_List[position], Alert_Asset_List[position] in Alert_Blocking_List))
+            Alert_List[position] = 0
+            tempvar = True
+            
+            #If a blocking alert occurs
+            while(Alert_Asset_List[position] in Alert_Blocking_List and tempvar == True): 
+                time.sleep(0.25)
+                f=open("LiveTests/Alerts/{}.txt".format(Alert_Asset_Text_List[position]), "r")  #16
+                ReRead = int(f.read())
+                if ReRead == 0:
+                    tempvar = False
+
+            #Else, any temporary alert
+            if(Alert_Asset_List[position] not in Alert_Blocking_List):
+                time.sleep(4)
+
+            SendPic(NP, NPicUpperPannel, Top_Page_Asset_List[VarTopPage])
+            RefUpper()
+            AlertBlocking = 0
+
+    #Exceptions 
+    if((Alert_Asset_List[position]) == 175 or 176): #Doors
+        pass
     
 
 #########################################################################################################################
@@ -1219,7 +1412,7 @@ def UpperThread():           #TODO ADD CAN - DONEish 7/15/21
         VarTopPage = SelectedPage
         forceNumUpdate = 1
         if(SelectedPage == 1):    #Speed
-            SendPic(NPicUpperPannel, AssetPageMPH)
+            SendPic(NP, NPicUpperPannel, AssetPageMPH)
             SendVis(NN, NNumLe, 0)
             SendVis(NN, NNumCe, 1)
             SendVis(NN, NNumRi, 0)
@@ -1232,7 +1425,7 @@ def UpperThread():           #TODO ADD CAN - DONEish 7/15/21
             SendVis(NT, NTextMin, 1)
             UpperNumberThread()
         elif(SelectedPage == 2):  #RPM
-            SendPic(NPicUpperPannel, AssetPageRPM)
+            SendPic(NP, NPicUpperPannel, AssetPageRPM)
             SendVis(NN, NNumLe, 0)
             SendVis(NN, NNumCe, 1)
             SendVis(NN, NNumRi, 0)
@@ -1245,7 +1438,7 @@ def UpperThread():           #TODO ADD CAN - DONEish 7/15/21
             SendVis(NT, NTextMin, 1)
             #RPMThread()
         elif(SelectedPage == 3):  #Gyro
-            SendPic(NPicUpperPannel, AssetPageGyro)
+            SendPic(NP, NPicUpperPannel, AssetPageGyro)
             SendVis(NN, NNumLe, 1)
             SendVis(NN, NNumCe, 1)
             SendVis(NN, NNumRi, 1)
@@ -1257,7 +1450,7 @@ def UpperThread():           #TODO ADD CAN - DONEish 7/15/21
             SendVis(NT, NTextHour, 0)
             SendVis(NT, NTextMin, 0)
         elif(SelectedPage == 4):  #UltraSonic
-            SendPic(NPicUpperPannel, AssetPageUltra)
+            SendPic(NP, NPicUpperPannel, AssetPageUltra)
             SendVis(NN, NNumLe, 1)
             SendVis(NN, NNumCe, 0)
             SendVis(NN, NNumRi, 1)
@@ -1269,7 +1462,7 @@ def UpperThread():           #TODO ADD CAN - DONEish 7/15/21
             SendVis(NT, NTextHour, 1)
             SendVis(NT, NTextMin, 1)
         elif(SelectedPage == 5):  #Front Distance (unused)
-            SendPic(NPicUpperPannel, AssetPageSpeedDistance)
+            SendPic(NP, NPicUpperPannel, AssetPageSpeedDistance)
             SendVis(NN, NNumLe, 1)
             SendVis(NN, NNumCe, 1)
             SendVis(NN, NNumRi, 0)
@@ -1281,7 +1474,7 @@ def UpperThread():           #TODO ADD CAN - DONEish 7/15/21
             SendRef(NT, NTextHour)
             SendRef(NT, NTextMin)
         elif(SelectedPage == 6):  #I/Set
-            SendPic(NPicUpperPannel, AssetPageISet)
+            SendPic(NP, NPicUpperPannel, AssetPageISet)
             SendVis(NN, NNumLe, 0)
             SendVis(NN, NNumCe, 0)
             SendVis(NN, NNumRi, 0)
@@ -1319,21 +1512,6 @@ def UpperThread():           #TODO ADD CAN - DONEish 7/15/21
 
     #Upper Page Number Handler - Drive Gears
     UpperNumberThread(forceNumUpdate) 
-    '''if(VarCurrentGear in driveGearsList): 
-        if(SelectedPage == 1):    #Speed
-            UpperNumberThread(1)          #Call to update speed (mode 1 - speed-center)
-        elif(SelectedPage == 2):  #RPM
-            UpperNumberThread(3)          #Call to update speed (mode 3 - RPM-center)
-        elif(SelectedPage == 3):  #Gyro
-            GyroThread()            #Call the Gyro Thread
-            UpperNumberThread(1)          #Call to update speed (mode 1 - speed-center)
-        elif(SelectedPage == 4):  #UltraSonic
-            UltraSonicThread(3)     #Call UltraSonic Thread (Mode 3 - Front & Rear)
-        elif(SelectedPage == 5):  #Front Distance (unused)
-            UpperNumberThread(2)          #Call to update speed (mode 2 - speed-left)
-            UltraSonicThread(1)     #Call UltraSonic Thread (Mode 1 - Front)
-        elif(SelectedPage == 6):  #I/Set
-            pass'''
 
     #Upper Page Number Handler - Reverse
     if (VarCurrentGear == "R"):
@@ -1403,8 +1581,8 @@ def CruiseThread():          #Handles everything cruise status! (State, Set Spee
 def CarStatsThread():
     pass
 
-def GyroThread():
-    pass
+#def GyroThread():
+    #pass
 
 
 def LightThread(option="Z"): # TODO For HL & Brakes REMEMBER to include all headlight options, (like ES OFF)
@@ -1447,8 +1625,7 @@ def LightThread(option="Z"): # TODO For HL & Brakes REMEMBER to include all head
     VarHeadlight = ReadVarHeadlight
     VarBrake = ReadVarBrake
 
-def AlertThread():
-    pass
+
 
 def BottomAlertThread():
     global VarBSDOff
@@ -1475,14 +1652,14 @@ def ArduinoThread():
 def ADASThread():      #TODO
     pass
 
-def UltraSonicThread(mode): #TODO
-    global VarFrontUS
-    global VarRearUS
+#def UltraSonicThread(mode): #TODO
+    #global VarFrontUS
+    #global VarRearUS
 
-    f=open("LiveTests/VarFrontUltrasonic.txt", "r")  
-    ReadBSD = int(f.read())
-    f=open("LiveTests/VarRearUltrasonic.txt", "r")  
-    ReadBSD = int(f.read())
+    #f=open("LiveTests/VarFrontUltrasonic.txt", "r")  
+    #ReadBSD = int(f.read())
+    #f=open("LiveTests/VarRearUltrasonic.txt", "r")  
+    #ReadBSD = int(f.read())
 
 def RadarThread(isLDW="Z"):
     global VarCurrentGear
@@ -1534,7 +1711,7 @@ def CloseThreads():
 ######################* Loops *##########################################################################################
 #########################################################################################################################
 def DemoLoop():
-    whatDemo = "DS"
+    whatDemo = "A"
     printDebug("RUNNING DEMO PROGRAM!!!!!")
     GetSavedValues()
     
@@ -1582,12 +1759,12 @@ def DemoLoop():
     #Reverse
     if(whatDemo == "R"):
         SetGear("R")
-        SendPic(NPicCenterPannel, AssetRCTA1)
+        SendPic(NP, NPicCenterPannel, AssetRCTA1)
         SendVis(NP, NPicCenterPannel, 1)
         SendVis(NP, NPicLeftLane, 0)
         SendVis(NP, NPicRightLane, 0)
         SendVis(NP, NPicHella, 0)
-        SendPic(NPicUpperPannel, AssetPageUltra)
+        SendPic(NP, NPicUpperPannel, AssetPageUltra)
         SendVal(NN, NNumLe, 12)
         SendVal(NN, NNumRi, 0)
         SendVis(NN, NNumLe, 1)
@@ -1602,14 +1779,14 @@ def DemoLoop():
         time.sleep(2)
         #ADD ULTRASONIC DIST
         #time.sleep(2)
-        SendPic(NPicUpperPannel, AssetPageMPH)
+        SendPic(NP, NPicUpperPannel, AssetPageMPH)
         SendRef(NP, NPicUpperPannel)
         SendVis(NN, NNumLe, 0)
         SendVis(NN, NNumCe, 1)
         SendVis(NN, NNumRi, 0)
         SendVis(NP, NPicHella, 1)
-        SendPic(NPicLeftLane, AssetLeftLaneWhite)
-        SendPic(NPicRightLane, AssetRightLaneWhite)
+        SendPic(NP, NPicLeftLane, AssetLeftLaneWhite)
+        SendPic(NP, NPicRightLane, AssetRightLaneWhite)
         SendVis(NP, NPicLeftLane, 1)
         SendVis(NP, NPicRightLane, 1)
         SendVis(NP, NPicCenterPannel, 0)
@@ -1658,6 +1835,9 @@ def WaitForStrt():   #TODO add arduino sinngling
         #pwr = ardMega.digital[10].read()
         #check doors, 
     printDebug("Starting program.....")
+    now = datetime.now()
+    ignitionStartHour = now.strftime("%-H")
+    ignitionStartMinn = now.strftime("%I")
     Startup()
 
 def Startup():  #TODO Remote start magic
@@ -1671,7 +1851,7 @@ def Startup():  #TODO Remote start magic
             #Do Door Checks for driver open then close
             time.sleep(3)
             rsHold = False
-        SendPic(NPicUpperPannel, AssetUpperRS)
+        SendPic(NP, NPicUpperPannel, AssetAlertRSActive)
         SendVis(NP, NPicUpperPannel, 1)
         #Wait for brake press
         printDebug("Waiting for brake takeover...")
@@ -1717,7 +1897,7 @@ def MainLoop():
             if(tempCounter != 100):  #If above function catches "D" gear early, we can skip all this
                 TimeThread(1)
                 TempThread(1)
-                SetHella(VarHella)
+                #SetHella(VarHella)
                 SetMPG()
                 SetTrip(TripVal)
                 SetFuel(FuelVal)
@@ -1756,7 +1936,7 @@ def MainLoop():
             SetBLAlerts(1, BSDOff, SRFOff, IceWarning)
             SetBRAlerts(1, sysAlert, parkBrake)
 
-            SendPic(NPicCenterPannel, AssetRCTA1)
+            SendPic(NP, NPicCenterPannel, AssetRCTA1)
             SendVis(NP, NPicCenterPannel, 1)
             SendVis(NP, NPicLeftLane, 0)
             SendVis(NP, NPicRightLane, 0)
@@ -1793,7 +1973,8 @@ def MainLoop():
             SendVal(NT, NTextGear, VarCurrentGear)
             TimeThread(1)
             TempThread(1)
-            #SetHella(VarHella)
+            UpperNumberThread()
+            UpperThread()
             SetMPG()
             SetTrip(TripVal)
             SetFuel(FuelVal)
@@ -1818,12 +1999,13 @@ def MainLoop():
                     SetGear(VarCurrentGear)
                     reverseInit = 1
                     lastKnownGear = VarCurrentGear
-                UpperNumberThread()
+                #UpperNumberThread()
                 RadarThread()
                 ADASThread()
                 CruiseThread()
                 LightThread()
                 UpperThread()
+                AlertThread()
                 time.sleep(0.25)
 
 
@@ -1860,13 +2042,14 @@ tTime = multitimer.MultiTimer(interval=5, function=TimeThread, runonstart=False)
 #tGear = multitimer.MultiTimer(interval=1, function=GearThread, runonstart=False)
 tCruise = multitimer.MultiTimer(interval=1, function=CruiseThread, runonstart=False)
 #tTemp = multitimer.MultiTimer(interval=10, function=TempThread, runonstart=False)
-#tTspeed = multitimer.MultiTimer(interval=10, function=UpperNumberThread, runonstart=False)
+tTspeed = multitimer.MultiTimer(interval=.25, function=UpperThread, runonstart=False)
 tLight = multitimer.MultiTimer(interval=0.25, function=LightThread, runonstart=False)
 #tAlert = multitimer.MultiTimer(interval=5, function=AlertThread, runonstart=False)
 
 #while True:
-   #DemoLoop()
-   #exit()
+#AlertThread()
+ #  DemoLoop()
+  # exit()
 
 GetSavedValues()
 WaitForStrt()
