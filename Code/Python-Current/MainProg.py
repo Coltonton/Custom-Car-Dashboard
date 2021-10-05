@@ -110,6 +110,8 @@ ignitionTimerHour = 0
 ignitionTimerMinn = -1
 ignitionHours     = 0
 
+showingAlert = False
+
 #---Timer Threads---
 tTime  = None
 tOutTemp  = None
@@ -325,7 +327,7 @@ AssetAlertLowBattery     = 166
 AssetAlertLowOil         = 167
 AssetAlertTPSLow         = 168
 AssetAlertWasherLow      = 169
-#AssetAlertHourIgnition   = 170 (removed)
+AssetAlertHourIgnition   = 170
 AssetAlertConsiderRest   = 171
 AssetAlertLightsOn       = 172
 AssetAlertMoveToPark     = 173
@@ -520,57 +522,17 @@ def SetPoPo(state=0, overide=0):
     else:
         printDebug("Hid PoPo - Page doesnt support")
 
-def SetBLAlerts(pageChange, temp1, SRF, ICE): #BL ALerts Set Function
-    global shownBLAlerts
-    global VarBSDOff
-    global VarSRFOff
-    global VarIceWarning
-
-    BSDOff      = temp1
-    SRFOff      = SRF
-    IceWarning  = ICE
-    if(pageChange == 1): #In The Event of a page change, Clear shownBLAlerts
-        shownBLAlerts = 0
-    
-    #The Following mess looks through the 3 possible bottom left alerts in order of BSD OFF, SRF OFF, Ice Warning
-    #And places them in available order in those spots. This is to make sure any appearing icons show from Left to right
-    #BSDOff can only ever be poss 1, SRF Off can only be Poss 1 or 2, Ice can be any 3. We must first detrime what
-    #Icons are active (done above), then work though the 3 possiablilities using thr shownBLAlerts counter as a sudo
-    #Place holder. 
-    #
-    #EX. If only the Ice warning is active, when the code reaches (IceWarning == 1) The shownBLAlerts counter will
-    #Be 0 and place the alert in posistion 1
-    if(BSDOff == 1):    #If the BSDOff warning is an active warning
-        SendPic(NP, NPicBL1, AssetBSDOff)      #(place in pos1)
-        printDebug("From BL Alerts: BSD Off")
-        shownBLAlerts = shownBLAlerts + 1 #Increment counter
-    if(SRFOff == 1):    #If the SRFOff warning is an active warning
-        if(shownBLAlerts == 1):           #If One Shown Alert (place in pos2)
-            SendPic(NP, NPicBL2, AssetSRFOff)
-        elif(shownBLAlerts == 0):         #If No other shown Alerts (place in pos1)
-            SendPic(NP, NPicBL1, AssetSRFOff)
-        printDebug("From BL Alerts: SRF Off")
-        shownBLAlerts = shownBLAlerts + 1 #Increment counter
-    if(IceWarning == 1):    #If the Ice warning is an active warning
-        if(shownBLAlerts == 2):           #If Two Shown Alerts (place in pos3)
-            SendPic(NP, NPicBL3, AssetIce)
-        elif(shownBLAlerts == 1):         #If One Shown Alert (place in pos2)
-            SendPic(NP, NPicBL2, AssetIce)
-        elif(shownBLAlerts == 0):         #If No other shown Alerts (place in pos1)
-            SendPic(NP, NPicBL1, AssetIce)
-        printDebug("From BL Alerts: Ice Warning")
-        shownBLAlerts = shownBLAlerts + 1 #Increment counter
+#def SetBLAlerts(pageChange, BSD, SRF, ICE, force=0): #BL ALerts Set Function
+#    pass #DELETED
 
 '''def SetBRAlerts(pageChange, sys, park):       #BR Alerts Set Function
     global shownBRAlerts
     global sysAlert
     global parkBrake
-
     if(pageChange == 1): #In The Event of a page change, Clear shownBLAlerts
         shownBRAlerts = 0
     sysAlert = sys
     parkBrake = park
-
     #The Following mess looks through the 2 possible bottom right alerts in order of Parking Brake, Sys alert 
     #And places them in available order in those spots. This is to make sure any appearing icons show from Right to Left
     #ParkBrake can only ever be poss 1, and SysAlert can only be Poss 1 or 2. We must first detrime what
@@ -588,7 +550,6 @@ def SetBLAlerts(pageChange, temp1, SRF, ICE): #BL ALerts Set Function
         elif(shownBRAlerts == 0):         #If No other shown Alerts (place in pos1)
             SendPic(NP, NPicBR1, AssetSysAlert)
         shownBRAlerts = shownBRAlerts + 1 #Increment counter
-
     #Show the correct ammount of box's
     if(shownBRAlerts == 1):      # Show 1 BL Box
         SendVis(NP, NPicBR1, 1)
@@ -1153,6 +1114,14 @@ def TimeThread(force=0):
 
     now = datetime.now()
     tempminn = now.strftime("%M")
+
+    if(tempminn != minn):
+        ignitionTimerMinn = ignitionTimerMinn + 1
+        if ignitionTimerMinn > 59:
+            ignitionTimerMinn = 0
+            ignitionTimerHour = ignitionTimerHour + 1
+        printDebug("Timer: {}:{}".format(ignitionTimerHour, ignitionTimerMinn))
+
     if((tempminn != minn or force == 1) and AlertBlocking == 0):
         hour = now.strftime("%I")
         minn = now.strftime("%M")
@@ -1177,32 +1146,17 @@ def TimeThread(force=0):
         AlertBlocking = 0
         RefUpper()
 
-    if(tempminn != minn ):
-        ignitionTimerMinn + 1
-        if ignitionTimerMinn > 59:
-            ignitionTimerMinn = 0
-            ignitionTimerHour + 1
-            
-    if(ignitionHours != ignitionTimerHour):
-        ignitionHours = ignitionTimerHour
-        printDebug("{} hour(s) since ignition ON".format(ignitionHours))
-        SendCrop(NN, NNumCe, AssetAlertHourIgnition)
-        SendFont(NN, NNumCe, 4)
-        SendVal(NN, NNumCe, ignitionHours)
-        time.sleep(5)
-        SendCrop(NN, NNumCe, AssetPageMPH)
-        SendFont(NN, NNumCe, 0)
-        SendVal(NN, NNumCe, 0)
+    BottomAlertThread()
 
-
+def DoorThread():
+    pass
     
-
-def TempThread(force=0):
+def OutTempThread(force=0):
     #global tTemp
     global VarOutsideTemp
     global AlertBlocking
 
-    f=open("LiveTests2/VarOutsideTemp.txt", "r")  
+    f=open("LiveTests/VarOutsideTemp.txt", "r")  
     ReadOutsideTemp = int(f.read())
 
     if((ReadOutsideTemp != VarOutsideTemp or force == 1)):# and AlertBlocking == 0):
@@ -1223,46 +1177,57 @@ def GearThread():
     VarCurrentGearCalc = 0
 
     #CAN magic to read cruise state
-    f=open("LiveTests2/VarCurrentGear.txt", "r")  
+    f=open("LiveTests/VarCurrentGear.txt", "r")  
     ReadVarCurrentGear = str(f.read())
-    f=open("LiveTests2/ReadVarGearUpable.txt", "r")  
+    f=open("LiveTests/ReadVarGearUpable.txt", "r")  
     ReadVarGearUpable = str(f.read())
-    f=open("LiveTests2/VarGearDwnable.txt", "r")  
+    f=open("LiveTests/VarGearDwnable.txt", "r")  
     ReadVarGearDwnable = str(f.read())
 
-    def GearThread():
-    global VarCurrentGear
-    global VarSpeed
-    global VarGearUppable
-    global VarGearDwnable
-    VarCurrentGearCalc = 0
+    if ReadVarGearUpable != VarGearUppable:
+        SendPic(NP, NPicGearUppable, AssetGearUpNorm)
+        SendVis(NP, NPicGearUppable, 1)
+    if ReadVarGearUpable != VarGearDwnable:
+        SendPic(NP, NPicGearDownable, AssetGearDnWarn)
+        SendVis(NP, NPicGearDownable, 1)
 
-    #CAN magic to read cruise state
-    f=open("LiveTests2/VarCurrentGear.txt", "r")  
-    ReadVarCurrentGear = str(f.read())
-    f=open("LiveTests2/ReadVarGearUpable.txt", "r")  
-    ReadVarGearUpable = str(f.read())
-    f=open("LiveTests2/VarGearDwnable.txt", "r")  
-    ReadVarGearDwnable = str(f.read())
+    if VarCurrentGear.isnumeric() == True:
+        VarCurrentGearCalc = int(VarCurrentGear)
+        if(VarCurrentGearCalc == 1):
+            if(VarSpeed > 10 and VarSpeed < 20 and VarManGearOption != 1):
+                SendPic(NP, NPicGearUppable, AssetGearUpNorm)
+                SendVis(NP, NPicGearUppable, 1)
+                VarManGearOption = 1
+            elif(VarSpeed > 20 and VarManGearOption != 2):
+                SendPic(NP, NPicGearUppable, AssetGearUpWarn)
+                SendVis(NP, NPicGearUppable, 1)
+                VarManGearOption = 2
+        elif(VarCurrentGearCalc == 2):
+            if(VarSpeed > 20 and VarSpeed < 30 and VarManGearOption != 1):
+                SendPic(NP, NPicGearUppable, AssetGearUpNorm)
+                SendVis(NP, NPicGearUppable, 1)
+                VarManGearOption = 1
+            elif(VarSpeed >= 30 and VarManGearOption != 2):
+                SendPic(NP, NPicGearUppable, AssetGearUpWarn)
+                SendVis(NP, NPicGearUppable, 1)
+                VarManGearOption = 2
 
-    if(ReadVarGearUpable != VarGearUppable):
-        VarGearUppable = ReadVarGearUpable
-        VarGearDwnable = ReadVarGearDwnable
-        if(VarGearUppable == 1):
-            SendPic(NP, NPicGearUppable, AssetGearUpNorm)
-            SendVis(NP, NPicGearUppable, 1)
-        else:
-            SendVis(NP, NPicGearUppable, 0)
-        if (VarGearDwnable == 1):
-            SendPic(NP, NPicGearDownable, AssetGearDnWarn)
-            SendVis(NP, NPicGearDownable, 1)
-        else:
-            SendVis(NP, NPicGearDownable, 0)
-
-
-
-    VarCurrentGear = ReadVarCurrentGear
-    return ReadVarCurrentGear
+            if(VarSpeed < 10 and VarSpeed < 20 and VarManGearOption != 3):
+                SendPic(NP, NPicGearUppable, AssetGearUpNorm)
+                SendVis(NP, NPicGearUppable, 1)
+                VarManGearOption = 3
+            elif(VarSpeed > 20 and VarManGearOption != 4):
+                SendPic(NP, NPicGearUppable, AssetGearUpWarn)
+                SendVis(NP, NPicGearUppable, 1)
+                VarManGearOption = 4
+        elif(VarCurrentGearCalc == 3):
+            print(VarCurrentGearCalc)
+        elif(VarCurrentGearCalc == 4):
+            print(VarCurrentGearCalc)
+        elif(VarCurrentGearCalc == 5):
+            print(VarCurrentGearCalc)
+        elif(VarCurrentGearCalc == 6):
+            print(VarCurrentGearCalc)
 
 
     VarCurrentGear = ReadVarCurrentGear
@@ -1279,17 +1244,17 @@ def UpperNumberThread(force=0): #Upper "Page" Numbers Thread
 
 
     #CAN/Ard magic to read Brake & Hella state
-    f=open("LiveTests2/VarSpeed.txt", "r")  
+    f=open("LiveTests/VarSpeed.txt", "r")  
     ReadSpeed = int(f.read())
-    f=open("LiveTests2/VarRPM.txt", "r")  
+    f=open("LiveTests/VarRPM.txt", "r")  
     ReadRPM = int(f.read())
-    f=open("LiveTests2/VarGyroRoll.txt", "r")  
+    f=open("LiveTests/VarGyroRoll.txt", "r")  
     ReadGyroRoll = int(f.read())
-    f=open("LiveTests2/VarGyroPitch.txt", "r")  
+    f=open("LiveTests/VarGyroPitch.txt", "r")  
     ReadGyroPitch = int(f.read())
-    f=open("LiveTests2/VarUltraFro.txt", "r")  
+    f=open("LiveTests/VarUltraFro.txt", "r")  
     ReadUltraFro= int(f.read())
-    f=open("LiveTests2/VarUltraRea.txt", "r")  
+    f=open("LiveTests/VarUltraRea.txt", "r")  
     ReadUltraRea = int(f.read())
 
     #This function adds 1 to the number vals to trick lower into refreshing, called typically with a upper page change
@@ -1347,63 +1312,63 @@ def AlertThread():
 
     # for n in x:
     if True:
-        f=open("LiveTests2/Alerts/AssetAlertOPStart.txt", "r")  #1
+        f=open("LiveTests/Alerts/AssetAlertOPStart.txt", "r")  #1
         ReadAlertOPStart = int(f.read())
-        f=open("LiveTests2/Alerts/AssetAlertGrabWheelY.txt", "r")  #2
+        f=open("LiveTests/Alerts/AssetAlertGrabWheelY.txt", "r")  #2
         ReadAlertGrabWheelY = int(f.read())
-        f=open("LiveTests2/Alerts/AssetAlertGrabWheelR.txt", "r")  #3
+        f=open("LiveTests/Alerts/AssetAlertGrabWheelR.txt", "r")  #3
         ReadAlertGrabWheelR = int(f.read())
-        f=open("LiveTests2/Alerts/AssetAlertNotClear.txt", "r")  #4
+        f=open("LiveTests/Alerts/AssetAlertNotClear.txt", "r")  #4
         ReadAlertNotClear = int(f.read())
-        f=open("LiveTests2/Alerts/AssetAlertClear.txt", "r")  #5
+        f=open("LiveTests/Alerts/AssetAlertClear.txt", "r")  #5
         ReadAlertClear = int(f.read())
-        f=open("LiveTests2/Alerts/AssetAlertLaneChange.txt", "r")  #6
+        f=open("LiveTests/Alerts/AssetAlertLaneChange.txt", "r")  #6
         ReadAlertLaneChange = int(f.read())
-        f=open("LiveTests2/Alerts/AssetAlertOPUnAvai.txt", "r")  #7
+        f=open("LiveTests/Alerts/AssetAlertOPUnAvai.txt", "r")  #7
         ReadAlertOPUnAvai = int(f.read())
-        f=open("LiveTests2/Alerts/AssetAlertDepressBrake.txt", "r")  #8
+        f=open("LiveTests/Alerts/AssetAlertDepressBrake.txt", "r")  #8
         ReadAlertDepressBrake = int(f.read())
-        f=open("LiveTests2/Alerts/AssetAlertRSActive.txt", "r")  #9
+        f=open("LiveTests/Alerts/AssetAlertRSActive.txt", "r")  #9
         ReadAlertRSActive = int(f.read())
-        f=open("LiveTests2/Alerts/AssetAlertRSTakeOver.txt", "r")  #10
+        f=open("LiveTests/Alerts/AssetAlertRSTakeOver.txt", "r")  #10
         ReadAlertRSTakeOver = int(f.read())
-        f=open("LiveTests2/Alerts/AssetAlertSysWarning.txt", "r")  #11
+        f=open("LiveTests/Alerts/AssetAlertSysWarning.txt", "r")  #11
         ReadAlertSysWarning = int(f.read())
-        f=open("LiveTests2/Alerts/AssetAlertLDWOff.txt", "r")  #12
+        f=open("LiveTests/Alerts/AssetAlertLDWOff.txt", "r")  #12
         ReadAlertLDWOff = int(f.read())
-        f=open("LiveTests2/Alerts/AssetAlertAEBOff.txt", "r")  #13
+        f=open("LiveTests/Alerts/AssetAlertAEBOff.txt", "r")  #13
         ReadAlertAEBOff = int(f.read())
-        f=open("LiveTests2/Alerts/AssetAlertTCSOff.txt", "r")  #14
+        f=open("LiveTests/Alerts/AssetAlertTCSOff.txt", "r")  #14
         ReadAlertTCSOff = int(f.read())
-        f=open("LiveTests2/Alerts/AssetAlertNoKey.txt", "r")  #15
+        f=open("LiveTests/Alerts/AssetAlertNoKey.txt", "r")  #15
         ReadAlertNoKey = int(f.read())
-        f=open("LiveTests2/Alerts/AssetAlertSeatbelt.txt", "r")  #16
+        f=open("LiveTests/Alerts/AssetAlertSeatbelt.txt", "r")  #16
         ReadAlertSeatbelt = int(f.read())
-        f=open("LiveTests2/Alerts/AssetAlertESNoView.txt", "r")  #17
+        f=open("LiveTests/Alerts/AssetAlertESNoView.txt", "r")  #17
         ReadAlertESNoView = int(f.read())
-        f=open("LiveTests2/Alerts/AssetAlertESCritical.txt", "r")  #18
+        f=open("LiveTests/Alerts/AssetAlertESCritical.txt", "r")  #18
         ReadAlertESCritical = int(f.read())
-        f=open("LiveTests2/Alerts/AssetAlertLowBattery.txt", "r")  #19
+        f=open("LiveTests/Alerts/AssetAlertLowBattery.txt", "r")  #19
         ReadAlertLowBattery = int(f.read())
-        f=open("LiveTests2/Alerts/AssetAlertLowOil.txt", "r")  #20
+        f=open("LiveTests/Alerts/AssetAlertLowOil.txt", "r")  #20
         ReadAlertLowOil = int(f.read())
-        f=open("LiveTests2/Alerts/AssetAlertTPSLow.txt", "r")  #21
+        f=open("LiveTests/Alerts/AssetAlertTPSLow.txt", "r")  #21
         ReadAlertTPSLow = int(f.read())
-        f=open("LiveTests2/Alerts/AssetAlertWasherLow.txt", "r")  #22
+        f=open("LiveTests/Alerts/AssetAlertWasherLow.txt", "r")  #22
         ReadAlertWasherLow = int(f.read())
-        #f=open("LiveTests2/Alerts/AssetAlertHourIgnition.txt", "r")  #23 (removed)
+        #f=open("LiveTests/Alerts/AssetAlertHourIgnition.txt", "r")  #23 (removed)
         #ReadAlertHourIgnition = int(f.read())
-        f=open("LiveTests2/Alerts/AssetAlertConsiderRest.txt", "r")  #24
+        f=open("LiveTests/Alerts/AssetAlertConsiderRest.txt", "r")  #24
         ReadAlertConsiderRest = int(f.read())
-        f=open("LiveTests2/Alerts/AssetAlertLightsOn.txt", "r")  #25
+        f=open("LiveTests/Alerts/AssetAlertLightsOn.txt", "r")  #25
         ReadAlertLightsOn = int(f.read())
-        f=open("LiveTests2/Alerts/AssetAlertMoveToPark.txt", "r")  #26
+        f=open("LiveTests/Alerts/AssetAlertMoveToPark.txt", "r")  #26
         ReadAlertMoveToPark = int(f.read())
-        f=open("LiveTests2/Alerts/AssetAlertTurnEngineOff.txt", "r")  #27
+        f=open("LiveTests/Alerts/AssetAlertTurnEngineOff.txt", "r")  #27
         ReadAlertTurnEngineOff = int(f.read())
-        f=open("LiveTests2/Alerts/AssetAlertDoorAlert.txt", "r")  #28
+        f=open("LiveTests/Alerts/AssetAlertDoorAlert.txt", "r")  #28
         ReadAlertDoorAlert = int(f.read())
-        f=open("LiveTests2/Alerts/AssetAlertDoorWarning.txt", "r")  #29
+        f=open("LiveTests/Alerts/AssetAlertDoorWarning.txt", "r")  #29
         ReadAlertDoorWarning = int(f.read())
 
     Alert_List = [ReadAlertSysWarning, ReadAlertSeatbelt, ReadAlertDoorAlert, ReadAlertDoorWarning, 
@@ -1425,7 +1390,7 @@ def AlertThread():
             #If a blocking alert occurs
             while(Alert_Asset_List[position] in Alert_Blocking_List and tempvar == True): 
                 time.sleep(0.25)
-                f=open("LiveTests2/Alerts/{}.txt".format(Alert_Asset_Text_List[position]), "r")  #16
+                f=open("LiveTests/Alerts/{}.txt".format(Alert_Asset_Text_List[position]), "r")  #16
                 ReRead = int(f.read())
                 if ReRead == 0:
                     tempvar = False
@@ -1462,13 +1427,13 @@ def UpperThread():           #TODO ADD CAN - DONEish 7/15/21
 
     #Get steering wheel controls and data
     if VarCurrentGear in driveGearsList:
-        f=open("LiveTests2/VarControls.txt", "r")   
+        f=open("LiveTests/VarControls.txt", "r")   
         SelectedPage = int(f.read())
     elif VarCurrentGear not in driveGearsList:
         SelectedPage = 1
     f=open("mydata/VarHella.txt", "r")  
     ReadVarHella = int(f.read())
-    f=open("LiveTests2/VarPopo.txt", "r")  
+    f=open("LiveTests/VarPopo.txt", "r")  
     ReadVarPoPo = int(f.read())
 
     #Upper Pages checks & sets - DRIVE GEARS ONLY
@@ -1611,15 +1576,15 @@ def CruiseThread():          #Handles everything cruise status! (State, Set Spee
     global VarBrake
 
     #CAN magic to read cruise state
-    f=open("LiveTests2/VarCruiseState.txt", "r")  
+    f=open("LiveTests/VarCruiseState.txt", "r")  
     ReadVarCruiseState = int(f.read())
-    f=open("LiveTests2\VarCruiseDist", "r")  
+    f=open("LiveTests\VarCruiseDist", "r")  
     ReadVarCruiseDist = int(f.read())
-    f=open("LiveTests2/VarCruiseSetSpeed.txt", "r")  
+    f=open("LiveTests/VarCruiseSetSpeed.txt", "r")  
     ReadVarCruiseSetSpeed = int(f.read())
-    f=open("LiveTests2/VarCruiseFollowing.txt", "r")  
+    f=open("LiveTests/VarCruiseFollowing.txt", "r")  
     ReadVarCruiseFollowing = int(f.read())
-    f=open("LiveTests2/VarIsRainbow.txt", "r")  
+    f=open("LiveTests/VarIsRainbow.txt", "r")  
     ReadVarIsRainbow = int(f.read())
 
     #If read cruise state changed from previous stored  
@@ -1657,9 +1622,9 @@ def LightThread(option="Z"): # TODO For HL & Brakes REMEMBER to include all head
     global VarTopPage
 
     #CAN/Ard magic to read Brake & Hella state
-    f=open("LiveTests2/VarHeadlight.txt", "r")  
+    f=open("LiveTests/VarHeadlight.txt", "r")  
     ReadVarHeadlight = int(f.read())
-    f=open("LiveTests2/VarBrake.txt", "r")  
+    f=open("LiveTests/VarBrake.txt", "r")  
     ReadVarBrake = int(f.read())
 
     if(ReadVarHeadlight != VarHeadlight and option == "Z"):
@@ -1704,13 +1669,13 @@ def BottomAlertThread(force=0):
 
     #CAN/Ard magic to read states
     #BSD
-    f=open("LiveTests2/VarBSDOff.txt", "r")  
+    f=open("LiveTests/VarBSDOff.txt", "r")  
     ReadVarBSDOff = int(f.read())
     #SRF
-    f=open("LiveTests2/VarSRFOff.txt", "r")  
+    f=open("LiveTests/VarSRFOff.txt", "r")  
     ReadVarSRFOff = int(f.read())
     #ICE
-    f=open("LiveTests2/VarOutsideTemp.txt", "r")  
+    f=open("LiveTests/VarOutsideTemp.txt", "r")  
     ReadVarOutsideTemp = int(f.read())
     if(ReadVarOutsideTemp <= 37 or VarIceWarning == 1): #If Outside Temp under 37F show icey warning icon (stays on whole ignition cycle)
         ReadIceWarning = 1
@@ -1720,9 +1685,9 @@ def BottomAlertThread(force=0):
     #print(VarIceWarning)
     
 
-    f=open("LiveTests2/VarSysAlert.txt", "r")  
+    f=open("LiveTests/VarSysAlert.txt", "r")  
     ReadVarSysAlert = int(f.read())
-    f=open("LiveTests2/VarParkBrake.txt", "r")  
+    f=open("LiveTests/VarParkBrake.txt", "r")  
     ReadVarParkBrake = int(f.read())
 
     '''The Following mess looks through the 3 possible bottom left alerts in order of BSD OFF, SRF OFF, Ice Warning
@@ -1829,9 +1794,9 @@ def ADASThread():      #TODO
     #global VarFrontUS
     #global VarRearUS
 
-    #f=open("LiveTests2/VarFrontUltrasonic.txt", "r")  
+    #f=open("LiveTests/VarFrontUltrasonic.txt", "r")  
     #ReadBSD = int(f.read())
-    #f=open("LiveTests2/VarRearUltrasonic.txt", "r")  
+    #f=open("LiveTests/VarRearUltrasonic.txt", "r")  
     #ReadBSD = int(f.read())
 
 def RadarThread(isLDW="Z"):
@@ -1841,9 +1806,9 @@ def RadarThread(isLDW="Z"):
     global driveGearsList
 
     #CAN/Ard magic to read Brake & Hella state
-    f=open("LiveTests2/VarBSD.txt", "r")  
+    f=open("LiveTests/VarBSD.txt", "r")  
     ReadBSD = str(f.read())
-    f=open("LiveTests2/VarRCTA.txt", "r")  
+    f=open("LiveTests/VarRCTA.txt", "r")  
     ReadRCTA = int(f.read())
 
     #If being called from LDW
@@ -2004,13 +1969,13 @@ def WaitForStrt():   #TODO add arduino sinngling
     printDebug("Waiting to start.....")
     while(power == 0):
         #CArduino magic to read cruise state
-        f=open("LiveTests2/Pwr.txt", "r")  
+        f=open("LiveTests/Pwr.txt", "r")  
         power = int(f.read())
         #pwr = ardMega.digital[10].read()
         #check doors, 
     printDebug("Starting program.....")
     now = datetime.now()
-    ignitionStartHour = now.strftime("%-H")
+    ignitionStartHour = now.strftime("%H")
     ignitionStartMinn = now.strftime("%I")
     Startup()
 
@@ -2072,7 +2037,7 @@ def MainLoop():
                 
             if(tempCounter != 100):  #If above function catches "D" gear early, we can skip all this
                 TimeThread(1)
-                TempThread(1)
+                OutTempThread(1)
                 #SetHella(VarHella)
                 SetMPG()
                 SetTrip(TripVal)
@@ -2150,7 +2115,7 @@ def MainLoop():
             SendPage(pageDrive)
             SendVal(NT, NTextGear, VarCurrentGear)
             TimeThread(1)
-            TempThread(1)
+            OutTempThread(1)
             UpperNumberThread()
             UpperThread()
             SetMPG()
@@ -2221,7 +2186,7 @@ def ComTest2(): #TODO
 tTime = multitimer.MultiTimer(interval=5, function=TimeThread, runonstart=False)
 #tGear = multitimer.MultiTimer(interval=1, function=GearThread, runonstart=False)
 tCruise = multitimer.MultiTimer(interval=1, function=CruiseThread, runonstart=False)
-#tTemp = multitimer.MultiTimer(interval=10, function=TempThread, runonstart=False)
+tOutTemp = multitimer.MultiTimer(interval=10, function=OutTempThread, runonstart=False)
 tTspeed = multitimer.MultiTimer(interval=.25, function=UpperThread, runonstart=False)
 tLight = multitimer.MultiTimer(interval=0.25, function=LightThread, runonstart=False)
 tBtmAlert = multitimer.MultiTimer(interval=1, function=BottomAlertThread, runonstart=False)
@@ -2266,4 +2231,4 @@ MainLoop()
             #    localCounter = 0
 
         #localCounter = 0
-        #nextSequence = False   
+        #nextSequence = False 
