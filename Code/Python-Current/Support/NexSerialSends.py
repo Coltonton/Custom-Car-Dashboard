@@ -141,7 +141,7 @@ def SendVis(type, id, isVis):
 def SendPic(type, id, asset):
     #p26.pic=81
     #70(type) (32 36)ID 2E 70 69 63 3D (38 31)Val (ff ff ff) terminator
-    printDebug('Setting a new picture for asset {}{} to image {}'. format(type, id, asset))
+    printDebug('Setting New Pic')
     hexbyte = bytes(type, encoding='utf8')
     idbyte = str.encode(str(id))
     cmdByte = str.encode(str('.pic='))
@@ -157,7 +157,7 @@ def SendCrop(type, id, asset):
     #n1.picc=170
     #6E   31   2E 70 69 63 63 3D 31 37 30  ff ff ff
     #b'n' b'1' 2E 70 69 63    3D b'170'    b'\xff\xff\xff'
-    printDebug('Setting a new crop picture for asset {}{} to image {}'. format(type, id, asset))
+    printDebug('Setting New Pic crop')
     hexbyte = bytes(type, encoding='utf8')
     idbyte = str.encode(str(id))
     cmdByte = str.encode(str('.picc='))
