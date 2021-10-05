@@ -4,7 +4,7 @@ from Support.SupportUtils import printDebug
 end_cmd=b'\xff\xff\xff'
 
 if(platform.system() == "Windows"):
-    ser = serial.Serial('COM7', baudrate = 19200,  writeTimeout = 10)  # open serial port
+    ser = serial.Serial('COM7', baudrate = 19200,  writeTimeout = 0)  # open serial port
     #pass
 elif (platform.system() == "Linux"):
     ser = serial.Serial('\dev\tty0')  # open serial port
@@ -89,6 +89,7 @@ def SendRef(type, id):
     ser.write(typebyte)
     ser.write(idbyte)
     ser.write(end_cmd)
+    sleepBy()
 
 def SendPage(pagecmd):
     printDebug("[From nextion.py] Showing page {}".format(pagecmd))
@@ -98,6 +99,7 @@ def SendPage(pagecmd):
     ser.write(end_cmd)
     
 def SendVal(type, id, val):
+    hexbyte = bytes(type, encoding='utf8')
     idbyte = str.encode(str(id))
     if isinstance(val, str) or isinstance(val, int):
         textbyte = str.encode(str(val))
@@ -108,7 +110,7 @@ def SendVal(type, id, val):
 
     if type == "t":
         #74(type) 31(ID) 2E 74 78 74 3D 22(begin marker) 33(CMD) 22(end marker) [ff ff ff](End Bytes)
-        ser.write(b'\x74')
+        ser.write(hexbyte)
         ser.write(idbyte)
         ser.write(b'\x2E\x74\x78\x74\x3D\x22')
         ser.write(textbyte)
@@ -121,6 +123,7 @@ def SendVal(type, id, val):
         ser.write(b'\x2E\x76\x61\x6C\x3D')
         ser.write(textbyte)
         ser.write(end_cmd)
+    sleepBy()
 
 def SendVis(type, id, isVis):
     #76 69 73 20 70(type) 32(id) 2C 30(val) ff ff ff (teminator)ser.write(b'\x74')
@@ -138,7 +141,7 @@ def SendVis(type, id, isVis):
 def SendPic(type, id, asset):
     #p26.pic=81
     #70(type) (32 36)ID 2E 70 69 63 3D (38 31)Val (ff ff ff) terminator
-    printDebug('Setting New Pic')
+    printDebug('Setting a new picture for asset {}{} to image {}'. format(type, id, asset))
     hexbyte = bytes(type, encoding='utf8')
     idbyte = str.encode(str(id))
     cmdByte = str.encode(str('.pic='))
@@ -154,7 +157,7 @@ def SendCrop(type, id, asset):
     #n1.picc=170
     #6E   31   2E 70 69 63 63 3D 31 37 30  ff ff ff
     #b'n' b'1' 2E 70 69 63    3D b'170'    b'\xff\xff\xff'
-    printDebug('Setting New Pic crop')
+    printDebug('Setting a new crop picture for asset {}{} to image {}'. format(type, id, asset))
     hexbyte = bytes(type, encoding='utf8')
     idbyte = str.encode(str(id))
     cmdByte = str.encode(str('.picc='))

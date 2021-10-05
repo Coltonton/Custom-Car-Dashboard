@@ -90,13 +90,16 @@ VarIceWarning      = 0
 VarSysAlert        = 0
 VarParkBrake       = 0
 
+
+VarGearUppable     = 0
+VarGearDwnable     = 0
 driveGearsList = ["N", "D", "1", "2", "3", "4", "5", "6"]
 Alert_List = []
 
 AlertBlocking = 0
 
 
-temp = 0
+VarOutsideTemp = 0
 
 updateHella   = 1
 updatePoPo    = 1 
@@ -107,9 +110,11 @@ ignitionTimerHour = 0
 ignitionTimerMinn = -1
 ignitionHours     = 0
 
+showingAlert = False
+
 #---Timer Threads---
 tTime  = None
-tTemp  = None
+tOutTemp  = None
 tSpeed = None
 
 
@@ -159,6 +164,8 @@ NPicLowerPannel    = 17
 NPicBL1            = 18
 NPicBL2            = 19
 NPicBL3            = 20
+NPicGearUppable    = 21
+NPicGearDownable   = 22
 NPicBR2            = 23
 NPicBR1            = 24
 NPicFuel           = 25
@@ -242,6 +249,11 @@ AssetBSDRNorm            = 88
 AssetBSDRBlue            = 89
 AssetBSDRYell            = 90
 
+AssetGearUpNorm          = 96
+AssetGearUpWarn          = 97
+AssetGearDnNorm          = 98
+AssetGearDnWarn          = 99
+
 AssetSysAlert            = 100
 AssetParkBrake           = 101
 AssetFuelNorm            = 102
@@ -315,7 +327,7 @@ AssetAlertLowBattery     = 166
 AssetAlertLowOil         = 167
 AssetAlertTPSLow         = 168
 AssetAlertWasherLow      = 169
-#AssetAlertHourIgnition   = 170 (removed)
+AssetAlertHourIgnition   = 170
 AssetAlertConsiderRest   = 171
 AssetAlertLightsOn       = 172
 AssetAlertMoveToPark     = 173
@@ -401,14 +413,14 @@ def Update(page):
         TimeThread()
     elif(page == "P"):
         TimeThread(1)
-        TempThread(1)
+        OutTempThread(1)
         SetHella(VarHella)
         SetMPG()
         SetTrip(TripVal)
         SetFuel(FuelVal)
         SetODO()
-        SetBLAlerts(1, BSDOff, SRFOff, IceWarning)
-        SetBRAlerts(1, sysAlert, parkBrake)
+        #SetBLAlerts(1, BSDOff, SRFOff, IceWarning)
+        #SetBRAlerts(1, sysAlert, parkBrake)
         while(VarCurrentGear == "P"):
             #BLAlertThread
             #ButtonThread
@@ -419,14 +431,14 @@ def Update(page):
     elif(page == "D"):
         #Init
         TimeThread(1)
-        TempThread(1)
+        OutTempThread(1)
         #SetHella(2)
         SetMPG()
         SetTrip(TripVal)
         SetFuel(FuelVal)
         SetODO()
-        SetBLAlerts(1, BSDOff, SRFOff, IceWarning)
-        SetBRAlerts(1, sysAlert, parkBrake)
+        #SetBLAlerts(1, BSDOff, SRFOff, IceWarning)
+        #SetBRAlerts(1, sysAlert, parkBrake)
 
         #tCruise.start()
         #tLight.start()
@@ -510,62 +522,10 @@ def SetPoPo(state=0, overide=0):
     else:
         printDebug("Hid PoPo - Page doesnt support")
 
-def SetBLAlerts(pageChange, temp1, SRF, ICE): #BL ALerts Set Function
-    global shownBLAlerts
-    global VarBSDOff
-    global VarSRFOff
-    global VarIceWarning
+#def SetBLAlerts(pageChange, BSD, SRF, ICE, force=0): #BL ALerts Set Function
+#    pass #DELETED
 
-    BSDOff      = temp1
-    SRFOff      = SRF
-    IceWarning  = ICE
-    if(pageChange == 1): #In The Event of a page change, Clear shownBLAlerts
-        shownBLAlerts = 0
-    
-    #The Following mess looks through the 3 possible bottom left alerts in order of BSD OFF, SRF OFF, Ice Warning
-    #And places them in available order in those spots. This is to make sure any appearing icons show from Left to right
-    #BSDOff can only ever be poss 1, SRF Off can only be Poss 1 or 2, Ice can be any 3. We must first detrime what
-    #Icons are active (done above), then work though the 3 possiablilities using thr shownBLAlerts counter as a sudo
-    #Place holder. 
-    #
-    #EX. If only the Ice warning is active, when the code reaches (IceWarning == 1) The shownBLAlerts counter will
-    #Be 0 and place the alert in posistion 1
-    if(BSDOff == 1):    #If the BSDOff warning is an active warning
-        SendPic(NP, NPicBL1, AssetBSDOff)      #(place in pos1)
-        printDebug("From BL Alerts: BSD Off")
-        shownBLAlerts = shownBLAlerts + 1 #Increment counter
-    if(SRFOff == 1):    #If the SRFOff warning is an active warning
-        if(shownBLAlerts == 1):           #If One Shown Alert (place in pos2)
-            SendPic(NP, NPicBL2, AssetSRFOff)
-        elif(shownBLAlerts == 0):         #If No other shown Alerts (place in pos1)
-            SendPic(NP, NPicBL1, AssetSRFOff)
-        printDebug("From BL Alerts: SRF Off")
-        shownBLAlerts = shownBLAlerts + 1 #Increment counter
-    if(IceWarning == 1):    #If the Ice warning is an active warning
-        if(shownBLAlerts == 2):           #If Two Shown Alerts (place in pos3)
-            SendPic(NP, NPicBL3, AssetIce)
-        elif(shownBLAlerts == 1):         #If One Shown Alert (place in pos2)
-            SendPic(NP, NPicBL2, AssetIce)
-        elif(shownBLAlerts == 0):         #If No other shown Alerts (place in pos1)
-            SendPic(NP, NPicBL1, AssetIce)
-        printDebug("From BL Alerts: Ice Warning")
-        shownBLAlerts = shownBLAlerts + 1 #Increment counter
-
-    #Show the correct ammount of box's
-    if(shownBLAlerts == 1):      # Show 1 BL Box
-        SendVis(NP, NPicBL1, 1)
-        SendVis(NP, NPicBL2, 0)
-        SendVis(NP, NPicBL3, 0)
-    elif(shownBLAlerts == 2):    # Show 2 BL Boxs
-        SendVis(NP, NPicBL1, 1)
-        SendVis(NP, NPicBL2, 1)
-        SendVis(NP, NPicBL3, 0)
-    elif(shownBLAlerts == 3):    # Show All 3 BL Boxs
-        SendVis(NP, NPicBL1, 1)
-        SendVis(NP, NPicBL2, 1)
-        SendVis(NP, NPicBL3, 1)
-
-def SetBRAlerts(pageChange, sys, park):       #BR Alerts Set Function
+'''def SetBRAlerts(pageChange, sys, park):       #BR Alerts Set Function
     global shownBRAlerts
     global sysAlert
     global parkBrake
@@ -600,6 +560,7 @@ def SetBRAlerts(pageChange, sys, park):       #BR Alerts Set Function
     elif(shownBRAlerts == 2):    # Show 2 BL Boxs
         SendVis(NP, NPicBR1, 1)
         SendVis(NP, NPicBR2, 1)
+'''
 
 def SetMPG(value=0):            #MPG Set Function 
     global MPGVal
@@ -1156,53 +1117,124 @@ def TimeThread(force=0):
 
     now = datetime.now()
     tempminn = now.strftime("%M")
+
+    if(tempminn != minn):
+        ignitionTimerMinn = ignitionTimerMinn + 1
+        if ignitionTimerMinn > 59:
+            ignitionTimerMinn = 0
+            ignitionTimerHour = ignitionTimerHour + 1
+        printDebug("Timer: {}:{}".format(ignitionTimerHour, ignitionTimerMinn))
+
     if((tempminn != minn or force == 1) and AlertBlocking == 0):
         hour = now.strftime("%I")
         minn = now.strftime("%M")
         SendVal(NT, NTextHour, hour)
         SendVal(NT, NTextMin, minn)
-        printDebug("Update Time. F={}".format(force))
-
-    if(tempminn != minn ):
-        ignitionTimerMinn + 1
-        if ignitionTimerMinn > 59:
-            ignitionTimerMinn = 0
-            ignitionTimerHour + 1
+        printDebug("Update Time. {}:{} F={}".format(hour, minn, force))
             
     if(ignitionHours != ignitionTimerHour):
         ignitionHours = ignitionTimerHour
+        AlertBlocking = 1
         printDebug("{} hour(s) since ignition ON".format(ignitionHours))
+        SendPic(NP, NPicUpperPannel, AssetAlertHourIgnition)
         SendCrop(NN, NNumCe, AssetAlertHourIgnition)
         SendFont(NN, NNumCe, 4)
         SendVal(NN, NNumCe, ignitionHours)
         time.sleep(5)
+        SendPic(NP, NPicUpperPannel, AssetPageMPH)
+        time.sleep(.3)
         SendCrop(NN, NNumCe, AssetPageMPH)
         SendFont(NN, NNumCe, 0)
         SendVal(NN, NNumCe, 0)
+        AlertBlocking = 0
+        RefUpper()
 
+    BottomAlertThread()
 
+def DoorThread():
+    pass
     
-
-def TempThread(force=0):
+def OutTempThread(force=0):
     #global tTemp
-    global temp
-    cur_temp = 46
-    if(cur_temp != temp or force == 1):
-        temp = cur_temp
-        SendVal(NT, NTextTemp, temp)
-        printDebug("Update Temp. F={}".format(force))
+    global VarOutsideTemp
+    global AlertBlocking
+
+    f=open("LiveTests/VarOutsideTemp.txt", "r")  
+    ReadOutsideTemp = int(f.read())
+
+    if((ReadOutsideTemp != VarOutsideTemp or force == 1)):# and AlertBlocking == 0):
+        VarOutsideTemp = ReadOutsideTemp
+        SendVal(NT, NTextTemp, VarOutsideTemp)
+        printDebug("Updated Outside Temperature to {}. F={}".format(VarOutsideTemp, force))
+
+        
 
     #tTemp = threading.Timer(3, TempThread)
     #tTemp.start()
 
 def GearThread():
     global VarCurrentGear
+    global VarSpeed
+    global VarGearUppable
+    global VarGearDwnable
+    VarCurrentGearCalc = 0
 
     #CAN magic to read cruise state
     f=open("LiveTests/VarCurrentGear.txt", "r")  
-    VarCurrentGear = str(f.read())
+    ReadVarCurrentGear = str(f.read())
+    f=open("LiveTests/ReadVarGearUpable.txt", "r")  
+    ReadVarGearUpable = str(f.read())
+    f=open("LiveTests/VarGearDwnable.txt", "r")  
+    ReadVarGearDwnable = str(f.read())
 
-    return VarCurrentGear
+    if ReadVarGearUpable != VarGearUppable:
+        SendPic(NP, NPicGearUppable, AssetGearUpNorm)
+        SendVis(NP, NPicGearUppable, 1)
+    if ReadVarGearUpable != VarGearDwnable:
+        SendPic(NP, NPicGearDownable, AssetGearDnWarn)
+        SendVis(NP, NPicGearDownable, 1)
+
+    if VarCurrentGear.isnumeric() == True:
+        VarCurrentGearCalc = int(VarCurrentGear)
+        if(VarCurrentGearCalc == 1):
+            if(VarSpeed > 10 and VarSpeed < 20 and VarManGearOption != 1):
+                SendPic(NP, NPicGearUppable, AssetGearUpNorm)
+                SendVis(NP, NPicGearUppable, 1)
+                VarManGearOption = 1
+            elif(VarSpeed > 20 and VarManGearOption != 2):
+                SendPic(NP, NPicGearUppable, AssetGearUpWarn)
+                SendVis(NP, NPicGearUppable, 1)
+                VarManGearOption = 2
+        elif(VarCurrentGearCalc == 2):
+            if(VarSpeed > 20 and VarSpeed < 30 and VarManGearOption != 1):
+                SendPic(NP, NPicGearUppable, AssetGearUpNorm)
+                SendVis(NP, NPicGearUppable, 1)
+                VarManGearOption = 1
+            elif(VarSpeed >= 30 and VarManGearOption != 2):
+                SendPic(NP, NPicGearUppable, AssetGearUpWarn)
+                SendVis(NP, NPicGearUppable, 1)
+                VarManGearOption = 2
+
+            if(VarSpeed < 10 and VarSpeed < 20 and VarManGearOption != 3):
+                SendPic(NP, NPicGearUppable, AssetGearUpNorm)
+                SendVis(NP, NPicGearUppable, 1)
+                VarManGearOption = 3
+            elif(VarSpeed > 20 and VarManGearOption != 4):
+                SendPic(NP, NPicGearUppable, AssetGearUpWarn)
+                SendVis(NP, NPicGearUppable, 1)
+                VarManGearOption = 4
+        elif(VarCurrentGearCalc == 3):
+            print(VarCurrentGearCalc)
+        elif(VarCurrentGearCalc == 4):
+            print(VarCurrentGearCalc)
+        elif(VarCurrentGearCalc == 5):
+            print(VarCurrentGearCalc)
+        elif(VarCurrentGearCalc == 6):
+            print(VarCurrentGearCalc)
+
+
+    VarCurrentGear = ReadVarCurrentGear
+    return ReadVarCurrentGear
 
 def UpperNumberThread(force=0): #Upper "Page" Numbers Thread
     global VarSpeed
@@ -1627,24 +1659,133 @@ def LightThread(option="Z"): # TODO For HL & Brakes REMEMBER to include all head
 
 
 
-def BottomAlertThread():
+def BottomAlertThread(force=0):
+    global shownBLAlerts
+    global shownBRAlerts
+    global VarOutsideTemp
     global VarBSDOff
     global VarSRFOff
     global VarIceWarning
     global VarSysAlert
     global VarParkBrake
+    ReadIceWarning = 0
 
-    #CAN/Ard magic to read Brake & Hella state
+    #CAN/Ard magic to read states
+    #BSD
     f=open("LiveTests/VarBSDOff.txt", "r")  
     ReadVarBSDOff = int(f.read())
+    #SRF
     f=open("LiveTests/VarSRFOff.txt", "r")  
     ReadVarSRFOff = int(f.read())
-    f=open("LiveTests\VarIceWarning.txt", "r")  
-    ReadVarIceWarning = int(f.read())
+    #ICE
+    f=open("LiveTests/VarOutsideTemp.txt", "r")  
+    ReadVarOutsideTemp = int(f.read())
+    if(ReadVarOutsideTemp <= 37 or VarIceWarning == 1): #If Outside Temp under 37F show icey warning icon (stays on whole ignition cycle)
+        ReadIceWarning = 1
+        #print("y thu")
+
+    #print(ReadIceWarning)
+    #print(VarIceWarning)
+    
+
     f=open("LiveTests/VarSysAlert.txt", "r")  
     ReadVarSysAlert = int(f.read())
     f=open("LiveTests/VarParkBrake.txt", "r")  
     ReadVarParkBrake = int(f.read())
+
+    '''The Following mess looks through the 3 possible bottom left alerts in order of BSD OFF, SRF OFF, Ice Warning
+       And places them in available order in those spots. This is to make sure any appearing icons show from Left to right
+       BSDOff can only ever be poss 1, SRF Off can only be Poss 1 or 2, Ice can be any 3. We must first detrime what
+       Icons are active, then work though the 3 possiablilities using thr shownBLAlerts counter as a sudo
+       Place holder.
+    
+       EX. If only the Ice warning is active, when the code reaches (IceWarning == 1) The shownBLAlerts counter will
+       Be 0 and place the alert in posistion 1 '''
+    if((ReadVarBSDOff != VarBSDOff) or (ReadVarSRFOff != VarSRFOff) or (ReadIceWarning != VarIceWarning) or (force == 1)):
+        shownBLAlerts = 0
+        if(ReadVarBSDOff == 1):    #If the BSDOff warning is an active warning
+            SendPic(NP, NPicBL1, AssetBSDOff)      #(place in pos1)
+            shownBLAlerts = shownBLAlerts + 1 #Increment counter
+            printDebug("From Bottom Alerts: BSD Off")
+        if(ReadVarSRFOff == 1):    #If the SRFOff warning is an active warning
+            if(shownBLAlerts == 1):           #If One Shown Alert (place in pos2)
+                SendPic(NP, NPicBL2, AssetSRFOff)
+            elif(shownBLAlerts == 0):         #If No other shown Alerts (place in pos1)
+                SendPic(NP, NPicBL1, AssetSRFOff)
+            shownBLAlerts = shownBLAlerts + 1 #Increment counter
+            printDebug("From Bottom Alerts: SRF Off")
+        if(ReadIceWarning == 1):   #If the Ice warning is an active warning
+            if(shownBLAlerts == 2):           #If Two Shown Alerts (place in pos3)
+                SendPic(NP, NPicBL3, AssetIce)
+            elif(shownBLAlerts == 1):         #If One Shown Alert (place in pos2)
+                SendPic(NP, NPicBL2, AssetIce)
+            elif(shownBLAlerts == 0):         #If No other shown Alerts (place in pos1)
+                SendPic(NP, NPicBL1, AssetIce)
+            shownBLAlerts = shownBLAlerts + 1 #Increment counter
+            printDebug("From Bottom Alerts: Ice Warning")
+            
+            #Show the correct ammount of box's
+
+        time.sleep(.01)
+
+        if(shownBLAlerts   == 1):  # Show 1 BL Box
+            SendVis(NP, NPicBL1, 1)
+            SendVis(NP, NPicBL2, 0)
+            SendVis(NP, NPicBL3, 0)
+        elif(shownBLAlerts == 2):  # Show 2 BL Boxs
+            SendVis(NP, NPicBL1, 1)
+            SendVis(NP, NPicBL2, 1)
+            SendVis(NP, NPicBL3, 0)
+        elif(shownBLAlerts == 3):  # Show All 3 BL Boxs
+            SendVis(NP, NPicBL1, 1)
+            SendVis(NP, NPicBL2, 1)
+            SendVis(NP, NPicBL3, 1)
+        else:                      # Show None
+            SendVis(NP, NPicBL1, 0)
+            SendVis(NP, NPicBL2, 0)
+            SendVis(NP, NPicBL3, 0)
+        
+        VarBSDOff     = ReadVarBSDOff
+        VarSRFOff     = ReadVarSRFOff
+        VarIceWarning = ReadIceWarning
+
+    '''The Following mess looks through the 2 possible bottom right alerts in order of Parking Brake, Sys alert 
+       And places them in available order in those spots. This is to make sure any appearing icons show from Right to Left
+       ParkBrake can only ever be poss 1, and SysAlert can only be Poss 1 or 2. We must first detrime what
+       Icons are active, then work though the 2 possiablilities using thr shownBRAlerts counter as a sudo
+       Place holder. 
+    
+       EX. If only the SysAlert is active, when the code reaches (SysAlert == 1) The shownBRAlerts counter will
+       Be 0 and place the alert in posistion 1'''
+    if((ReadVarParkBrake != VarParkBrake) or (ReadVarSysAlert != VarSysAlert) or (force == 1)):
+        shownBRAlerts = 0
+        #Selection Logic
+        if(ReadVarParkBrake == 1):    #If the BSDOff warning is an active warning
+            SendPic(NP, NPicBR1, AssetParkBrake)      #(place in pos1)
+            shownBRAlerts = shownBRAlerts + 1 #Increment counter
+        if(ReadVarSysAlert == 1):    #If the SRFOff warning is an active warning
+            if(shownBRAlerts == 1):           #If One Shown Alert (place in pos2)
+                SendPic(NP, NPicBR2, AssetSysAlert)
+            elif(shownBRAlerts == 0):         #If No other shown Alerts (place in pos1)
+                SendPic(NP, NPicBR1, AssetSysAlert)
+            shownBRAlerts = shownBRAlerts + 1 #Increment counter
+
+        #SendPic(NP, NPicBR2, AssetSysAlert)
+
+        #Show the correct ammount of box's
+        if(shownBRAlerts == 1):      # Show 1 BL Box
+            SendVis(NP, NPicBR1, 1)
+            SendVis(NP, NPicBR2, 0)
+        elif(shownBRAlerts == 2):    # Show 2 BL Boxs
+            SendVis(NP, NPicBR1, 1)
+            SendVis(NP, NPicBR2, 1)
+        else:
+            SendVis(NP, NPicBR1, 0)
+            SendVis(NP, NPicBR2, 0)
+
+        VarParkBrake = ReadVarParkBrake
+        VarSysAlert = ReadVarSysAlert
+
 
 def ArduinoThread():
     pass
@@ -1700,7 +1841,7 @@ def DoorThread():
 
 def CloseThreads():
     global tTime
-    global tTemp
+    global tOutTemp
     #tTime.cancel()
     #tTemp.cancel()
     #tSpeed.cancel
@@ -1730,15 +1871,16 @@ def DemoLoop():
         SendPage(pagePark)
         time.sleep(3.5)
         TimeThread(1)
-        TempThread(1)
+        OutTempThread(1)
         SetHella(1)
         SetPoPo(1)
         SetMPG()
         SetTrip(TripVal)
         SetFuel(FuelVal)
         SetODO()
-        SetBLAlerts(1, 1, 1, 1)
-        SetBRAlerts(1, 1, 1)
+        BottomAlertThread(1)
+        #SetBLAlerts(1, 1, 1, 1)
+        #SetBRAlerts(1, 1, 1)
         time.sleep(5)
         whatDemo = "DS"
     
@@ -1746,7 +1888,7 @@ def DemoLoop():
     if(whatDemo == "DS"):
         SendPage(pageDrive)
         TimeThread(1)
-        TempThread(1)
+        OutTempThread(1)
         SetHella(1)
         SetGear("D")
         SetMPG()
@@ -1771,7 +1913,7 @@ def DemoLoop():
         SendVis(NN, NNumCe, 0)
         SendVis(NN, NNumRi, 1)
         TimeThread(1)
-        TempThread(1)
+        OutTempThread(1)
         time.sleep(5)
         RCTAShow("L")
         time.sleep(2)
@@ -1836,7 +1978,7 @@ def WaitForStrt():   #TODO add arduino sinngling
         #check doors, 
     printDebug("Starting program.....")
     now = datetime.now()
-    ignitionStartHour = now.strftime("%-H")
+    ignitionStartHour = now.strftime("%H")
     ignitionStartMinn = now.strftime("%I")
     Startup()
 
@@ -1862,7 +2004,7 @@ def Startup():  #TODO Remote start magic
 
 def MainLoop():
     global VarCurrentGear
-    global driveGearList
+    global driveGearsList
     global VarTopPage
     global pageOveride
     initRun = 1
@@ -1878,6 +2020,8 @@ def MainLoop():
         elif(VarCurrentGear == "P"):
             tempCounter = 0
             tTime.start()
+            tOutTemp.start()
+            tBtmAlert.start()
             #tGear.start()
             SendPage(pagePark)
             
@@ -1896,21 +2040,22 @@ def MainLoop():
                 
             if(tempCounter != 100):  #If above function catches "D" gear early, we can skip all this
                 TimeThread(1)
-                TempThread(1)
+                OutTempThread(1)
                 #SetHella(VarHella)
                 SetMPG()
                 SetTrip(TripVal)
                 SetFuel(FuelVal)
                 SetODO()
-                SetBLAlerts(1, VarBSDOff, VarSRFOff, VarIceWarning)
-                SetBRAlerts(1, VarSysAlert, VarParkBrake)
+                BottomAlertThread(1)
+                #SetBLAlerts(1, VarBSDOff, VarSRFOff, VarIceWarning)
+                #SetBRAlerts(1, VarSysAlert, VarParkBrake)
                 printDebug("Park init done, starting loop:")
                 while(inParkLoop == 1 and VarCurrentGear == "P"):
                     if( GearThread() == 'D'):
                         inParkLoop = 0
                         inDriveLoop = 1
                     UpperThread()
-                    BottomAlertThread()
+                    #BottomAlertThread() #killed
                     #ButtonThread
                     #FuelThread
                     #LightThread
@@ -1927,14 +2072,15 @@ def MainLoop():
             SendPage(pageDrive)
             SendVal(NT, NTextGear, VarCurrentGear)
             TimeThread(1)
-            TempThread(1)
+            OutTempThread(1)
             #SetHella(VarHella)
             SetMPG()
             SetTrip(TripVal)
             SetFuel(FuelVal)
             SetODO()
-            SetBLAlerts(1, BSDOff, SRFOff, IceWarning)
-            SetBRAlerts(1, sysAlert, parkBrake)
+            BottomAlertThread(1)
+            #SetBLAlerts(1, BSDOff, SRFOff, IceWarning)
+            #SetBRAlerts(1, sysAlert, parkBrake)
 
             SendPic(NP, NPicCenterPannel, AssetRCTA1)
             SendVis(NP, NPicCenterPannel, 1)
@@ -1972,15 +2118,16 @@ def MainLoop():
             SendPage(pageDrive)
             SendVal(NT, NTextGear, VarCurrentGear)
             TimeThread(1)
-            TempThread(1)
+            OutTempThread(1)
             UpperNumberThread()
             UpperThread()
             SetMPG()
             SetTrip(TripVal)
             SetFuel(FuelVal)
             SetODO()
-            SetBLAlerts(1, BSDOff, SRFOff, IceWarning)
-            SetBRAlerts(1, sysAlert, parkBrake)
+            BottomAlertThread(1)
+            #SetBLAlerts(1, BSDOff, SRFOff, IceWarning)
+            #SetBRAlerts(1, sysAlert, parkBrake)
             pageOveride = 1
             printDebug("Drive init Done, starting loop:")
 
@@ -2001,6 +2148,7 @@ def MainLoop():
                     lastKnownGear = VarCurrentGear
                 #UpperNumberThread()
                 RadarThread()
+                BottomAlertThread()
                 ADASThread()
                 CruiseThread()
                 LightThread()
@@ -2041,9 +2189,10 @@ def ComTest2(): #TODO
 tTime = multitimer.MultiTimer(interval=5, function=TimeThread, runonstart=False)
 #tGear = multitimer.MultiTimer(interval=1, function=GearThread, runonstart=False)
 tCruise = multitimer.MultiTimer(interval=1, function=CruiseThread, runonstart=False)
-#tTemp = multitimer.MultiTimer(interval=10, function=TempThread, runonstart=False)
+tOutTemp = multitimer.MultiTimer(interval=10, function=OutTempThread, runonstart=False)
 tTspeed = multitimer.MultiTimer(interval=.25, function=UpperThread, runonstart=False)
 tLight = multitimer.MultiTimer(interval=0.25, function=LightThread, runonstart=False)
+tBtmAlert = multitimer.MultiTimer(interval=1, function=BottomAlertThread, runonstart=False)
 #tAlert = multitimer.MultiTimer(interval=5, function=AlertThread, runonstart=False)
 
 #while True:

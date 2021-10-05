@@ -6,4 +6,4 @@ def printDebug(msg):
     if debugMSGs == 1:
         now = datetime.now()
         debugtime = now.strftime("%m/%d %I:%M.%S")
-        print("[Debug Msg ({})]: {}".format(debugtime, msg))
+        print("[{}]: {}".format(debugtime, msg))#] #Debug Msg ()
