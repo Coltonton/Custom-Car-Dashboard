@@ -1,3 +1,5 @@
+#Created By Coltonton - it will be done someday tm
+
 import serial, time, platform, threading
 import pyfirmata
 from datetime import datetime
@@ -6,7 +8,7 @@ from Support.NexSerialSends import ResetNextion, SendPage, SendVal, SendVis, Sen
 from Support.SupportUtils import printDebug
 import multitimer
 
-
+The 
 #if(platform.system() == "Windows"):
 #    #ardMega = pyfirmata.Arduino('COM8')
 #elif (platform.system() == "Linux"):
